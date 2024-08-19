@@ -13,12 +13,12 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cors())
 app.use(cors({
   origin: function (origin, callback) {
-    const allowedOrigins = ['https://natheer777.github.io', 'http://localhost:5173/academy/about'];
+    const allowedOrigins = ['https://natheer777.github.io', 'http://localhost:5173'];
     if (allowedOrigins.includes(origin) || !origin) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
-      
+
     }
   }
 }));
