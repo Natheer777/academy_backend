@@ -22,5 +22,18 @@ class Model {
     })  
     })  
     }
+
+    static deletecomment(id){
+        return new Promise((resolve , reject) =>{
+            const query = 'DELETE FROM comments WHERE id =?'
+            db.query(query , [id],(error , result) =>{
+                if(error){
+                    return reject(error)
+                }else{
+                    return resolve(result.affectedRows > 0)
+                }
+            })
+        })
+    }
 }
 module.exports = Model

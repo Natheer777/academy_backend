@@ -21,5 +21,24 @@ class UserController{
             res.status(500).send('error')
         }
     }
+
+
+    static async deletecomment(req , res){
+        const {id} = req.body
+        try{
+            if(id){
+                const resultId = await Model.deletecomment(id)
+                if(resultId){
+                    res.send('delete done')
+                }else{
+                    res.status(500).send('delete failed')
+                }
+            }else{
+                res.status(400).send('id is required')
+            }
+        }catch(error){
+            res.status(500).send('error deleting comment')
+        }
+    }
 }
 module.exports = UserController
