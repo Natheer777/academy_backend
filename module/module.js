@@ -1,39 +1,35 @@
 const db = require('../config/config')
 class Model {
-    static getcomments(){
-        return new Promise((resolve , reject) =>{
-            db.query('SELECT * FROM comments' ,[] ,(error , result) =>{
-                if(error){
-                    return reject(error)
-                }else{
-                    resolve(result)
-                }
-            })
-        })
-    } 
-    static addcomments(name , country , comment){
-      return new Promise((resolve , reject) =>{
-        const query = 'INSERT INTO comments (name, country ,comment) VALUES (?, ? ,?)'
-    db.query(query, [name, country ,comment],(error , result) =>{
-        if(error){
-            return reject(error);
+    static async getcomments() {
+        try {
+            const [rows] = await db.query('SELECT * FROM comments'); // استعلام مباشر بدون الحاجة إلى Promise يدوي
+            return rows; // إرجاع النتائج
+        } catch (error) {
+            console.error("Database query error:", error);
+            throw error; // رمي الخطأ ليتم التعامل معه في الدالة المستدعية
         }
-        resolve(result.affectedRows > 0);
-    })  
-    })  
     }
-
-    static deletecomment(id){
-        return new Promise((resolve , reject) =>{
-            const query = 'DELETE FROM comments WHERE id =?'
-            db.query(query , [id],(error , result) =>{
-                if(error){
-                    return reject(error)
-                }else{
-                    return resolve(result.affectedRows > 0)
-                }
-            })
-        })
+    static async addcomments(name, country, comment) {
+        try {
+            const query = 'INSERT INTO comments (name, country, comment) VALUES (?, ?, ?)';
+            const [result] = await db.query(query, [name, country, comment]);
+            return result.affectedRows > 0;
+        } catch (error) {
+            console.error('Database insert error:', error);
+            throw error;
+        }
+    }
+    
+    static async deletecomment(id) {
+        try {
+            const query = 'DELETE FROM comments WHERE id = ?';
+            const [result] = await db.query(query, [id]);
+            return result.affectedRows > 0;
+        } catch (error) {
+            console.error('Database delete error:', error);
+            throw error;
+        }
     }
 }
 module.exports = Model
+

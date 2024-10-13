@@ -5,4 +5,5 @@ router.get('/allcomments', UserController.getAllcomments)
 router.post('/addcomment' , UserController.addcomments)
 router.delete('/deletecomment' ,UserController.deletecomment)
 
+
 module.exports = router;

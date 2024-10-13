@@ -1,18 +1,30 @@
-const mysql = require('mysql2')
+const mysql = require('mysql2/promise');
+
+// إعداد الاتصال بقاعدة البيانات
 const db = mysql.createPool({
-    host:'b6cg8mpnnxei6eygavd5-mysql.services.clever-cloud.com',
-    port:3306,
-    user:'uo3sgblsubaqgefa',
-    database:'b6cg8mpnnxei6eygavd5',
-    password:'3xtHxqDjQCw0JMDpY1NN'
-})
-db.getConnection((err , connection)=>{
-    if(err){
-        console.error('Bad connect' ,err)
-        return;
-    }else{
-        console.log('good connect');
-        connection.release()
+    host: 'b6cg8mpnnxei6eygavd5-mysql.services.clever-cloud.com',
+    port: 3306,
+    user: 'uo3sgblsubaqgefa',
+    database: 'b6cg8mpnnxei6eygavd5',
+    password: '3xtHxqDjQCw0JMDpY1NN',
+
+    // host: 'srv621.hstgr.io',
+    // user: 'u229294786_UKHrI',
+    // password: 'Sawa2020!',
+    // database: 'u229294786_JZfqq',
+
+});
+
+
+// اختبار الاتصال
+(async () => {
+    try {
+        const connection = await db.getConnection();  // الحصول على اتصال
+        console.log('Good connection');
+        connection.release();  // تحرير الاتصال بعد الاستخدام
+    } catch (err) {
+        console.error('Bad connection', err);
     }
-})
-module.exports = db
+})();
+
+module.exports = db;
