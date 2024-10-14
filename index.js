@@ -1,14 +1,12 @@
-// server.js (Express and MySQL Backend)
 const express = require("express");
 const router = require("./router/route");
 const bodyParser = require("body-parser");
 const path = require("path");
-const mysql = require("mysql2/promise");
 const cors = require("cors");
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken'); // لإدارة التوكن
+const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
-const db = require('./config/config'); // إعداد قاعدة البيانات
+const db = require('./config/config');
 require('dotenv').config();
 
 const app = express();
@@ -19,36 +17,32 @@ app.use(bodyParser.json());
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cors());
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      const allowedOrigins = [
-        "https://natheer777.github.io",
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5500",
-      ];
-      if (allowedOrigins.includes(origin) || !origin) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-  })
-);
+app.use(cors({
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      "https://natheer777.github.io",
+      "http://localhost:5173",
+      "http://localhost:3000",
+      "http://127.0.0.1:5500",
+    ];
+    if (allowedOrigins.includes(origin) || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+}));
 
-// استخدام الروترات
 app.use(router);
 app.use(express.static(path.join(__dirname, "public")));
 
 // إعداد البريد الإلكتروني باستخدام Nodemailer
 const sendVerificationEmail = async (email, verificationCode) => {
   const transporter = nodemailer.createTransport({
-    service: 'gmail', // يمكنك تغييره حسب المزود
+    service: 'gmail',
     auth: {
-      user: process.env.EMAIL, // بريدك الإلكتروني
-      pass: process.env.EMAIL_PASSWORD, // كلمة مرور بريدك
+      user: process.env.EMAIL,
+      pass: process.env.EMAIL_PASSWORD,
     },
   });
 
@@ -70,43 +64,20 @@ const sendVerificationEmail = async (email, verificationCode) => {
 // نقطة نهاية للتسجيل
 app.post('/register', async (req, res) => {
   const {
-    firstName,
-    lastName,
-    country,
-    age,
-    gender,
-    educationLevel,
-    japaneseLevel,
-    phone,
-    email,
-    password,
+    firstName, lastName, country, age, gender, educationLevel, japaneseLevel, phone, email, password,
   } = req.body;
 
   try {
-    // تشفير كلمة المرور
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // إنشاء رمز التفعيل
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     const sql = `INSERT INTO users (firstName, lastName, country, age, gender, educationLevel, japaneseLevel, phone, email, password, verificationCode) 
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
-    const [result] = await db.query(sql, [
-      firstName,
-      lastName,
-      country,
-      age,
-      gender,
-      educationLevel,
-      japaneseLevel,
-      phone,
-      email,
-      hashedPassword,
-      verificationCode,
+    await db.query(sql, [
+      firstName, lastName, country, age, gender, educationLevel, japaneseLevel, phone, email, hashedPassword, verificationCode,
     ]);
 
-    // إرسال البريد الإلكتروني مع رمز التفعيل
     await sendVerificationEmail(email, verificationCode);
     res.status(200).json({ message: 'User registered, verification email sent' });
   } catch (err) {
@@ -117,7 +88,6 @@ app.post('/register', async (req, res) => {
 
 // نقطة نهاية للتحقق
 app.post('/verify', async (req, res) => {
-
   const { email, verificationCode } = req.body;
 
   try {
@@ -138,17 +108,15 @@ app.post('/verify', async (req, res) => {
   }
 });
 
-
+// نقطة نهاية لتسجيل الدخول مع توليد رمز JWT
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
 
-  // التحقق من صحة المدخلات
   if (!email || !password) {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
 
   try {
-    // استرجاع المستخدم من قاعدة البيانات
     const [rows] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
 
     if (rows.length === 0) {
@@ -156,25 +124,62 @@ app.post('/login', async (req, res) => {
     }
 
     const user = rows[0];
-    const hash = user.password; // التجزئة المخزنة في قاعدة البيانات
+    const hash = user.password;
 
-    // مقارنة كلمة المرور المدخلة مع التجزئة المخزنة
     const isMatch = await bcrypt.compare(password, hash);
 
     if (isMatch) {
-      // تسجيل الدخول ناجح
-      res.status(200).json({ message: 'Login successful!', user });
+      const token = jwt.sign(
+        { id: user.id, email: user.email },
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+
+      res.status(200).json({ message: 'Login successful!', token, user });
     } else {
-      // كلمة المرور غير صحيحة
       res.status(401).json({ message: 'Invalid password.' });
     }
-    
   } catch (error) {
     console.error('Error during login:', error);
     res.status(500).json({ message: 'Server error.' });
   }
 });
 
+// دالة مصادقة JWT
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1]; // التأكد من وجود Bearer
+  console.log('Token:', token); // Log the token for debugging
+
+  if (!token) {
+    return res.status(401).json({ message: 'Missing token' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ message: 'Invalid token' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// نقطة نهاية للحصول على بيانات المستخدم المسجل
+app.get('/user', authenticateToken, async (req, res) => {
+  try {
+    const [rows] = await db.query('SELECT firstName, lastName, email FROM users WHERE id = ?', [req.user.id]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    res.status(200).json({ user: rows[0] });
+  } catch (error) {
+    console.error('Error fetching user:', error);
+    res.status(500).json({ message: 'Server error.' });
+  }
+});
+
 app.listen(port, () => {
-  console.log(`server is running on port http://localhost:${port}`);
+  console.log(`Server is running on port http://localhost:${port}`);
 });
