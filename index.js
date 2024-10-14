@@ -54,6 +54,8 @@ const sendVerificationEmail = async (email, verificationCode) => {
     text: `Your verification code is: ${verificationCode}`,
   };
 
+  
+
   try {
     await transporter.sendMail(mailOptions);
     console.log('Email sent');
