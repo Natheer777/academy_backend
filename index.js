@@ -46,6 +46,7 @@ const sendVerificationEmail = async (email, verificationCode) => {
       pass: process.env.EMAIL_PASSWORD,
     },
   });
+  
 
   const mailOptions = {
     from: process.env.EMAIL,
@@ -54,7 +55,7 @@ const sendVerificationEmail = async (email, verificationCode) => {
     text: `Your verification code is: ${verificationCode}`,
   };
 
-  
+
 
   try {
     await transporter.sendMail(mailOptions);
