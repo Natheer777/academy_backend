@@ -1,5 +1,6 @@
 const Model = require('../module/module')
 const bcrypt = require('bcryptjs')
+const JWT_SECRET = process.env.JWT_SECRET; // يجب وضع الـ JWT_SECRET في ملف .env
 
 class UserController{
     static async getAllcomments(req, res) {
@@ -72,6 +73,39 @@ class UserController{
             res.status(500).send('Error deleting comment');
         }
     }
+
+    static login = async (req, res) => {
+        const { username, password } = req.body;
+
+        // التحقق من إدخال اسم المستخدم وكلمة المرور
+        if (!username || !password) {
+            return res.status(400).json({ message: "الرجاء إدخال اسم المستخدم وكلمة المرور." });
+        }
+
+        try {
+            // البحث عن المستخدم في قاعدة البيانات
+            const user = await Model.getUserByUsername(username);
+            if (!user) {
+                return res.status(401).json({ message: "اسم المستخدم أو كلمة المرور غير صحيح." });
+            }
+
+            // مقارنة كلمة المرور المدخلة مع المشفرة
+            const isPasswordValid = await bcrypt.compare(password, user.password);
+            if (!isPasswordValid) {
+                return res.status(401).json({ message: "اسم المستخدم أو كلمة المرور غير صحيح." });
+            }
+
+            // إنشاء التوكن JWT
+            const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
+
+            // إرسال الرد مع التوكن
+            res.status(200).json({ message: "تم تسجيل الدخول بنجاح", token });
+        } catch (error) {
+            console.error("Error during login:", error);
+            res.status(500).json({ message: "حدث خطأ أثناء تسجيل الدخول" });
+        }
+    };
+
     
    static   updateCredentials = async (req, res) => {
         const { newUsername, newPassword, userId } = req.body;
