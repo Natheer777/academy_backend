@@ -1,4 +1,6 @@
 const Model = require('../module/module')
+const bcrypt = require('bcryptjs')
+
 class UserController{
     static async getAllcomments(req, res) {
         try {
@@ -70,5 +72,44 @@ class UserController{
             res.status(500).send('Error deleting comment');
         }
     }
+    
+   static   updateCredentials = async (req, res) => {
+        const { newUsername, newPassword, userId } = req.body;
+      
+        if (!newUsername || !newPassword) {
+          return res.status(400).json({ message: "الرجاء إدخال اسم مستخدم وكلمة مرور." });
+        }
+      
+        try {
+          // تشفير كلمة المرور
+          const hashedPassword = await bcrypt.hash(newPassword, 10);
+          
+          // تحديث البيانات في قاعدة البيانات
+          await Model.updateCredentials(userId, newUsername, hashedPassword);
+          
+          res.status(200).json({ message: "تم تحديث اسم المستخدم وكلمة المرور بنجاح" });
+        } catch (error) {
+          console.error("Error updating credentials:", error);
+          res.status(500).json({ message: "حدث خطأ أثناء تحديث البيانات" });
+        }
+      };
+      
+      // دالة لجلب المستخدم باستخدام ID (يمكن استخدامها لاحقًا)
+      static  getUserById = async (req, res) => {
+        const userId = req.params.id;
+      
+        try {
+          const user = await Model.getUserById(userId);
+          if (!user) {
+            return res.status(404).json({ message: "المستخدم غير موجود" });
+          }
+          res.status(200).json(user);
+        } catch (error) {
+          console.error("Error fetching user:", error);
+          res.status(500).json({ message: "حدث خطأ أثناء جلب بيانات المستخدم" });
+        }
+      };
 }
+
+
 module.exports = UserController

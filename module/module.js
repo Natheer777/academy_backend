@@ -51,4 +51,24 @@ class Model {
     }
   }
 }
+
+exports.updateCredentials = (userId, username, password) => {
+  return new Promise((resolve, reject) => {
+    const query = `UPDATE dash SET username = ?, password = ? WHERE id = ?`;
+    db.execute(query, [username, password, userId])
+      .then(result => resolve(result))
+      .catch(error => reject(error));
+  });
+};
+
+// دالة لجلب بيانات المستخدم باستخدام ID
+exports.getUserById = (userId) => {
+  return new Promise((resolve, reject) => {
+    const query = `SELECT * FROM dash WHERE id = ?`;
+    db.execute(query, [userId])
+      .then(result => resolve(result[0]))
+      .catch(error => reject(error));
+  });
+};
+
 module.exports = Model;

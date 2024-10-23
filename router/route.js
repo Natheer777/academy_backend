@@ -6,5 +6,7 @@ router.post('/addcomment' , UserController.addcomments)
 router.delete('/deletecomment' ,UserController.deletecomment)
 router.get('/allusers' , UserController.allusers)
 router.delete('/deleteusers' , UserController.deleteusers)
+router.put('/updatecredentials', UserController.updateCredentials);
+router.get('/user/:id', UserController.getUserById);
 
 module.exports = router;

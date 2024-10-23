@@ -15,8 +15,6 @@ const db = mysql.createPool({
 
 });
 
-
-
 // اختبار الاتصال
 (async () => {
     try {
