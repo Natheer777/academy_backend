@@ -77,19 +77,16 @@ class UserController{
     static login = async (req, res) => {
         const { username, password } = req.body;
 
-        // التحقق من إدخال اسم المستخدم وكلمة المرور
         if (!username || !password) {
             return res.status(400).json({ message: "الرجاء إدخال اسم المستخدم وكلمة المرور." });
         }
 
         try {
-            // البحث عن المستخدم في قاعدة البيانات
             const user = await Model.getUserByUsername(username);
             if (!user) {
                 return res.status(401).json({ message: "اسم المستخدم أو كلمة المرور غير صحيح." });
             }
 
-            // مقارنة كلمة المرور المدخلة مع المشفرة
             const isPasswordValid = await bcrypt.compare(password, user.password);
             if (!isPasswordValid) {
                 return res.status(401).json({ message: "اسم المستخدم أو كلمة المرور غير صحيح." });
@@ -98,7 +95,6 @@ class UserController{
             // إنشاء التوكن JWT
             const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
 
-            // إرسال الرد مع التوكن
             res.status(200).json({ message: "تم تسجيل الدخول بنجاح", token });
         } catch (error) {
             console.error("Error during login:", error);
@@ -106,43 +102,37 @@ class UserController{
         }
     };
 
-    
-   static   updateCredentials = async (req, res) => {
+    static updateCredentials = async (req, res) => {
         const { newUsername, newPassword, userId } = req.body;
-      
+
         if (!newUsername || !newPassword) {
-          return res.status(400).json({ message: "الرجاء إدخال اسم مستخدم وكلمة مرور." });
+            return res.status(400).json({ message: "الرجاء إدخال اسم مستخدم وكلمة مرور." });
         }
-      
+
         try {
-          // تشفير كلمة المرور
-          const hashedPassword = await bcrypt.hash(newPassword, 10);
-          
-          // تحديث البيانات في قاعدة البيانات
-          await Model.updateCredentials(userId, newUsername, hashedPassword);
-          
-          res.status(200).json({ message: "تم تحديث اسم المستخدم وكلمة المرور بنجاح" });
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
+            await Model.updateCredentials(userId, newUsername, hashedPassword);
+            res.status(200).json({ message: "تم تحديث اسم المستخدم وكلمة المرور بنجاح" });
         } catch (error) {
-          console.error("Error updating credentials:", error);
-          res.status(500).json({ message: "حدث خطأ أثناء تحديث البيانات" });
+            console.error("Error updating credentials:", error);
+            res.status(500).json({ message: "حدث خطأ أثناء تحديث البيانات" });
         }
-      };
-      
-      // دالة لجلب المستخدم باستخدام ID (يمكن استخدامها لاحقًا)
-      static  getUserById = async (req, res) => {
+    };
+
+    static getUserById = async (req, res) => {
         const userId = req.params.id;
-      
+
         try {
-          const user = await Model.getUserById(userId);
-          if (!user) {
-            return res.status(404).json({ message: "المستخدم غير موجود" });
-          }
-          res.status(200).json(user);
+            const user = await Model.getUserById(userId);
+            if (!user) {
+                return res.status(404).json({ message: "المستخدم غير موجود" });
+            }
+            res.status(200).json(user);
         } catch (error) {
-          console.error("Error fetching user:", error);
-          res.status(500).json({ message: "حدث خطأ أثناء جلب بيانات المستخدم" });
+            console.error("Error fetching user:", error);
+            res.status(500).json({ message: "حدث خطأ أثناء جلب بيانات المستخدم" });
         }
-      };
+    };
 }
 
 
