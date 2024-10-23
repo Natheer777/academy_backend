@@ -77,16 +77,19 @@ class UserController{
     static login = async (req, res) => {
         const { username, password } = req.body;
 
+        // التحقق من إدخال اسم المستخدم وكلمة المرور
         if (!username || !password) {
             return res.status(400).json({ message: "الرجاء إدخال اسم المستخدم وكلمة المرور." });
         }
 
         try {
+            // البحث عن المستخدم في قاعدة البيانات
             const user = await Model.getUserByUsername(username);
             if (!user) {
                 return res.status(401).json({ message: "اسم المستخدم أو كلمة المرور غير صحيح." });
             }
 
+            // مقارنة كلمة المرور المدخلة مع المشفرة
             const isPasswordValid = await bcrypt.compare(password, user.password);
             if (!isPasswordValid) {
                 return res.status(401).json({ message: "اسم المستخدم أو كلمة المرور غير صحيح." });
@@ -95,6 +98,7 @@ class UserController{
             // إنشاء التوكن JWT
             const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '1h' });
 
+            // إرسال الرد مع التوكن
             res.status(200).json({ message: "تم تسجيل الدخول بنجاح", token });
         } catch (error) {
             console.error("Error during login:", error);
@@ -110,8 +114,12 @@ class UserController{
         }
 
         try {
+            // تشفير كلمة المرور
             const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+            // تحديث البيانات في قاعدة البيانات
             await Model.updateCredentials(userId, newUsername, hashedPassword);
+
             res.status(200).json({ message: "تم تحديث اسم المستخدم وكلمة المرور بنجاح" });
         } catch (error) {
             console.error("Error updating credentials:", error);
@@ -119,6 +127,7 @@ class UserController{
         }
     };
 
+    // دالة لجلب المستخدم باستخدام ID
     static getUserById = async (req, res) => {
         const userId = req.params.id;
 
@@ -133,6 +142,7 @@ class UserController{
             res.status(500).json({ message: "حدث خطأ أثناء جلب بيانات المستخدم" });
         }
     };
+
 }
 
 
