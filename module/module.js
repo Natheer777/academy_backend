@@ -98,13 +98,13 @@ class Model {
     }
   }
 
-  static async getusers() {
+    static async getusers() {
     try {
-      const [rows] = await db.query("SELECT * FROM users");
-      return rows;
+      const [row] = await db.query("SELECT * FROM users");
+      return row;
     } catch (error) {
       console.error("Database query error:", error);
-      throw error;
+      throw error; // رمي الخطأ ليتم التعامل معه في الدالة المستدعية
     }
   }
 

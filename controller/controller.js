@@ -167,15 +167,14 @@ class UserController {
         }
     }
 
-    static async allusers(req, res) {
-        try {
-            const result = await Model.getusers();
-            res.send(result);
-        } catch (error) {
-            console.error("Error fetching users:", error);
-            res.status(500).send("Error fetching users");
-        }
-    }
+    static async allusers(req , res){
+                try{
+                    const result = await Model.getusers();
+                    res.send(result)
+                }catch(error){
+                    console.error("Error fetching users:", error);
+                    res.status(500).send("Error fetching users");        }
+            }
 
     static async addcomments(req, res) {
         const { name, country, comment } = req.body;
@@ -286,7 +285,6 @@ class UserController {
     // دالة لجلب المستخدم باستخدام ID
     static getUserById = async (req, res) => {
         const userId = req.params.id;
-
         try {
             const user = await Model.getUserById(userId);
             if (!user) {
