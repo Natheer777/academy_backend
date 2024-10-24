@@ -151,6 +151,17 @@ class Model {
       throw error;
     }
   }
+  static async getUserByUsername_user(email) {
+    try {
+        const query = "SELECT * FROM users WHERE email = ?"; // البحث فقط بالبريد الإلكتروني
+        const [result] = await db.query(query, [email]); // تمرير البريد الإلكتروني فقط
+        return result[0]; // إرجاع أول مستخدم
+    } catch (error) {
+        console.error("Database query error:", error);
+        throw error;
+    }
+}
+
 
   static async updateCredentials(userId, username, password) {
     try {
