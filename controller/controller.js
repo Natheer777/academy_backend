@@ -229,38 +229,7 @@ class UserController {
         }
     }
 
-    static login_user = async (req, res) => {
-        const { email, password } = req.body; // استخدام email بدلاً من username
     
-        // التحقق من إدخال البريد الإلكتروني وكلمة المرور
-        if (!email || !password) {
-            return res.status(400).json({ message: "الرجاء إدخال البريد الإلكتروني وكلمة المرور." });
-        }
-    
-        try {
-            // البحث عن المستخدم في قاعدة البيانات باستخدام البريد الإلكتروني
-            const user = await Model.getUserByUsername_user(email); 
-            if (!user) {
-                return res.status(401).json({ message: "البريد الإلكتروني أو كلمة المرور غير صحيح." });
-            }
-    
-            // مقارنة كلمة المرور المدخلة مع المشفرة
-            const isPasswordValid = await bcrypt.compare(password, user.password);
-            if (!isPasswordValid) {
-                return res.status(401).json({ message: "البريد الإلكتروني أو كلمة المرور غير صحيح." });
-            }
-    
-            // إنشاء التوكن JWT
-            const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '1h' }); // استخدام JWT_SECRET من البيئة
-    
-            // إرسال الرد مع التوكن
-            res.status(200).json({ message: "تم تسجيل الدخول بنجاح", token });
-        } catch (error) {
-            console.error("Error during login:", error);
-            res.status(500).json({ message: "حدث خطأ أثناء تسجيل الدخول" });
-        }
-    };
-
     
     
     static login = async (req, res) => {
