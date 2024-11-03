@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const db = require('./config/config');
+const cookieParser = require('cookie-parser')
 require('dotenv').config();
 
 const app = express();
@@ -17,6 +18,7 @@ app.use(bodyParser.json());
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser())
 app.use(cors({
   origin: function (origin, callback) {
     const allowedOrigins = [
@@ -37,6 +39,15 @@ app.use(cors({
 
 app.use(router);
 app.use(express.static(path.join(__dirname, "public")));
+//////////////////////////
+
+app.get('/accept-cookies' , (req , res) =>{
+  res.cookie('acceptCookies' , 'true' ,{maxAge: 30 * 24 * 60 * 60 * 1000});
+  res.json({message: 'Cookies accept'});
+})
+
+
+//////////////////////////
 
 // إعداد البريد الإلكتروني باستخدام Nodemailer
 const sendVerificationEmail = async (email, verificationCode) => {
