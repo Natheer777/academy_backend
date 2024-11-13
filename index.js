@@ -48,6 +48,30 @@ app.get('/accept-cookies' , (req , res) =>{
 
 
 //////////////////////////
+app.put('/api/update-level', (req, res) => {
+  const { studentId, levelName } = req.body;
+
+  if (!studentId || !levelName) {
+    return res.status(400).json({ message: 'الرجاء إرسال كل المعطيات المطلوبة' });
+  }
+
+  // تحديث مستوى الطالب في قاعدة البيانات
+  const query = 'UPDATE users SET Level = ? WHERE id = ?';
+  db.query(query, [levelName, studentId], (err, result) => {
+    if (err) {
+      console.error('خطأ في التحديث:', err);
+      return res.status(500).json({ message: 'حدث خطأ أثناء التحديث' });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'الطالب غير موجود' });
+    }
+
+    res.status(200).json({ message: 'تم التحديث بنجاح' });
+  });
+});
+
+
+//////////////////////
 
 // إعداد البريد الإلكتروني باستخدام Nodemailer
 const sendVerificationEmail = async (email, verificationCode) => {
@@ -124,6 +148,8 @@ app.post('/verify', async (req, res) => {
   }
 });
 
+
+
 // نقطة نهاية لتسجيل الدخول مع توليد رمز JWT
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -145,13 +171,14 @@ app.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, hash);
 
     if (isMatch) {
+      // إنشاء التوكن
       const token = jwt.sign(
         { id: user.id, email: user.email },
         process.env.JWT_SECRET,
         { expiresIn: '1h' }
       );
 
-      res.status(200).json({ message: 'Login successful!', token, user });
+      res.status(200).json({ message: 'Login successful!', token });
     } else {
       res.status(401).json({ message: 'Invalid password.' });
     }
@@ -165,7 +192,6 @@ app.post('/login', async (req, res) => {
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // التأكد من وجود Bearer
-  console.log('Token:', token); // Log the token for debugging
 
   if (!token) {
     return res.status(401).json({ message: 'Missing token' });
@@ -179,6 +205,9 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+
+//////////////
 
 // نقطة نهاية للحصول على بيانات المستخدم المسجل
 app.get('/user', authenticateToken, async (req, res) => {
@@ -195,6 +224,11 @@ app.get('/user', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Server error.' });
   }
 });
+
+//////////////////////////////////////
+
+
+
 
 app.listen(port, () => {
   console.log(`Server is running on port http://localhost:${port}`);
