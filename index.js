@@ -11,7 +11,7 @@ const cookieParser = require('cookie-parser')
 require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 5000;
 
 // إعدادات Express
 app.use(bodyParser.json());
@@ -138,6 +138,7 @@ app.post('/verify', async (req, res) => {
       return res.status(400).json({ error: 'Invalid verification code or email.' });
     }
 
+
     const updateSql = 'UPDATE users SET emailVerified = 1 WHERE email = ?';
     await db.query(updateSql, [email]);
 
@@ -148,10 +149,8 @@ app.post('/verify', async (req, res) => {
   }
 });
 
-
-
 // نقطة نهاية لتسجيل الدخول مع توليد رمز JWT
-app.post('/login', async (req, res) => {
+app.post('/login_user', async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
@@ -171,14 +170,13 @@ app.post('/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, hash);
 
     if (isMatch) {
-      // إنشاء التوكن
       const token = jwt.sign(
         { id: user.id, email: user.email },
         process.env.JWT_SECRET,
         { expiresIn: '1h' }
       );
 
-      res.status(200).json({ message: 'Login successful!', token });
+      res.status(200).json({ message: 'Login successful!', token, user });
     } else {
       res.status(401).json({ message: 'Invalid password.' });
     }
@@ -192,6 +190,7 @@ app.post('/login', async (req, res) => {
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // التأكد من وجود Bearer
+  console.log('Token:', token); // Log the token for debugging
 
   if (!token) {
     return res.status(401).json({ message: 'Missing token' });
@@ -205,9 +204,6 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
-
-
-//////////////
 
 // نقطة نهاية للحصول على بيانات المستخدم المسجل
 app.get('/user', authenticateToken, async (req, res) => {

@@ -264,6 +264,7 @@ class UserController {
         }
     };
 
+    
     static updateCredentials = async (req, res) => {
         const { newUsername, newPassword, userId } = req.body;
 
