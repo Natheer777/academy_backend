@@ -47,8 +47,9 @@ app.get('/accept-cookies' , (req , res) =>{
 })
 
 
+
 //////////////////////////
-app.put('/api/update-level', (req, res) => {
+app.post('/api/update-level', (req, res) => {
   const { studentId, levelName } = req.body;
 
   if (!studentId || !levelName) {
