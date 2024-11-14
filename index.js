@@ -49,10 +49,13 @@ app.get('/accept-cookies' , (req , res) =>{
 
 
 //////////////////////////
-app.post('/api/update-level', (req, res) => {
+app.put('/api/update-level', (req, res) => {
   const { studentId, levelName } = req.body;
 
+  console.log('المعطيات المستلمة:', { studentId, levelName });
+
   if (!studentId || !levelName) {
+    console.log('المعطيات مفقودة');
     return res.status(400).json({ message: 'الرجاء إرسال كل المعطيات المطلوبة' });
   }
 
@@ -63,10 +66,14 @@ app.post('/api/update-level', (req, res) => {
       console.error('خطأ في التحديث:', err);
       return res.status(500).json({ message: 'حدث خطأ أثناء التحديث' });
     }
+    console.log('نتيجة التحديث:', result);
+
     if (result.affectedRows === 0) {
+      console.log('الطالب غير موجود');
       return res.status(404).json({ message: 'الطالب غير موجود' });
     }
 
+    console.log('تم التحديث بنجاح');
     res.status(200).json({ message: 'تم التحديث بنجاح' });
   });
 });
