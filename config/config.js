@@ -12,8 +12,8 @@ const db = mysql.createPool({
     password: 'Sawavps2024%',
     user: 'u229294786_T7V3N',
     database: 'u229294786_pGFtY',
-
 });
+
 
 // اختبار الاتصال
 (async () => {

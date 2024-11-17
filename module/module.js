@@ -1,90 +1,3 @@
-// const db = require("../config/config");
-// class Model {
-//   static async getcomments() {
-//     try {
-//       const [rows] = await db.query("SELECT * FROM comments"); // استعلام مباشر بدون الحاجة إلى Promise يدوي
-//       return rows; // إرجاع النتائج
-//     } catch (error) {
-//       console.error("Database query error:", error);
-//       throw error; // رمي الخطأ ليتم التعامل معه في الدالة المستدعية
-//     }
-//   }
-//   static async getusers() {
-//     try {
-//       const [row] = await db.query("SELECT * FROM users");
-//       return row;
-//     } catch (error) {
-//       console.error("Database query error:", error);
-//       throw error; // رمي الخطأ ليتم التعامل معه في الدالة المستدعية
-//     }``
-//   }
-//   static async addcomments(name, country, comment) {
-//     try {
-//       const query =
-//         "INSERT INTO comments (name, country, comment) VALUES (?, ?, ?)";
-//       const [result] = await db.query(query, [name, country, comment]);
-//       return result.affectedRows > 0;
-//     } catch (error) {
-//       console.error("Database insert error:", error);
-//       throw error;
-//     }
-//   }
-
-//   static async deletecomment(id) {
-//     try {
-//       const query = "DELETE FROM comments WHERE id = ?";
-//       const [result] = await db.query(query, [id]);
-//       return result.affectedRows > 0;
-//     } catch (error) {
-//       console.error("Database delete error:", error);
-//       throw error;
-//     }
-//   }
-//   static async deleteuser(id) {
-//     try {
-//       const query = "DELETE FROM users WHERE id = ?";
-//       const [result] = await db.query(query, [id]);
-//       return result.affectedRows > 0;
-//     } catch (error) {
-//       console.error("Database delete error:", error);
-//       throw error;
-//     }
-//   }
-
-
-//   static getUserByUsername = (username) => {
-//     return new Promise((resolve, reject) => {
-//         const query = `SELECT * FROM dash WHERE username = ?`;
-//         db.execute(query, [username])
-//             .then(result => resolve(result[0]))
-//             .catch(error => reject(error));
-//     });
-// };
-
-// static updateCredentials = (userId, username, password) => {
-//     return new Promise((resolve, reject) => {
-//         const query = `UPDATE dash SET username = ?, password = ? WHERE id = ?`;
-//         db.execute(query, [username, password, userId])
-//             .then(result => resolve(result))
-//             .catch(error => reject(error));
-//     });
-// };
-
-// static getUserById = (userId) => {
-//     return new Promise((resolve, reject) => {
-//         const query = `SELECT * FROM dash WHERE id = ?`;
-//         db.execute(query, [userId])
-//             .then(result => resolve(result[0]))
-//             .catch(error => reject(error));
-//     });
-// };
-
-// }
-
-
-// module.exports = Model;
-
-
 const db = require("../config/config");
 
 class Model {
@@ -98,7 +11,7 @@ class Model {
     }
   }
 
-    static async getusers() {
+  static async getusers() {
     try {
       const [row] = await db.query("SELECT * FROM users");
       return row;
@@ -110,7 +23,8 @@ class Model {
 
   static async addcomments(name, country, comment) {
     try {
-      const query = "INSERT INTO comments (name, country, comment) VALUES (?, ?, ?)";
+      const query =
+        "INSERT INTO comments (name, country, comment) VALUES (?, ?, ?)";
       const [result] = await db.query(query, [name, country, comment]);
       return result.affectedRows > 0;
     } catch (error) {
@@ -151,8 +65,6 @@ class Model {
       throw error;
     }
   }
- 
-
 
   static async updateCredentials(userId, username, password) {
     try {
@@ -175,6 +87,24 @@ class Model {
       throw error;
     }
   }
+
+  static async UpdateLevel(id, Level) {
+    return new Promise((resolve, reject) => {
+      const query = "UPDATE users SET Level = ? WHERE id = ?";
+      db.query(query, [Level, id], (error, results) => {
+        if (error) {
+          return reject(error);
+        }
+        resolve(results.affectedRows > 0);
+      });
+    });
+  }
+
+  static updateUserRole = async (userId, role) => {
+    const query = "UPDATE users SET role = ? WHERE id = ?";
+    const params = [role, userId];
+    return db.query(query, params);
+  };
 }
 
 module.exports = Model;

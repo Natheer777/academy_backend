@@ -264,6 +264,9 @@ class UserController {
         }
     };
 
+
+
+
     
     static updateCredentials = async (req, res) => {
         const { newUsername, newPassword, userId } = req.body;
@@ -300,6 +303,47 @@ class UserController {
             res.status(500).json({ message: "حدث خطأ أثناء جلب بيانات المستخدم" });
         }
     };
+
+
+    static UpdateLevel = async (req, res) => {
+        const { id, Level } = req.body;
+        try {
+            if (id) {
+                const editAnswer = await Model.UpdateLevel(id, Level);
+                if (editAnswer) {
+                    return res.send("Edit done");  // تأكد من استخدام return هنا لإنهاء الطلب
+                } else {
+                    return res.status(500).send("Edit failed");  // إنهاء الطلب حتى في حالة الفشل
+                }
+            } else {
+                return res.status(400).send("ID is required");  // التأكد من إرسال استجابة إذا كان id مفقود
+            }
+        } catch (error) {
+            return res.status(500).send("Error editing Level");
+        }
+    };
+
+
+
+static updateRole = async (req, res) => {
+    const { userId, role } = req.body;
+
+    // تحقق من أن الدور صالح
+    if (!['student', 'teacher'].includes(role)) {
+        return res.status(400).send('Invalid role');
+    }
+
+    try {
+        // استدعاء الموديل لتحديث الدور
+        await Model.updateUserRole(userId, role);
+        res.status(200).send('Role updated successfully');
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('An error occurred while updating the role');
+    }
+};
+
+
 }
 
 module.exports = UserController;

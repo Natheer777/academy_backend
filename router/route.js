@@ -9,5 +9,7 @@ router.delete('/deleteusers' , UserController.deleteusers)
 router.post('/login', UserController.login);
 router.put('/updatecredentials', UserController.updateCredentials);
 router.get('/user/:id', UserController.getUserById);
+router.put('/api/update-level', UserController.UpdateLevel);
+router.post('/update-role', UserController.updateRole);
 
 module.exports = router;
