@@ -8,9 +8,13 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const db = require("./config/config");
 const cookieParser = require("cookie-parser");
+const http = require('http')
+const {Server} = require('socket.io') 
 require("dotenv").config();
 
+
 const app = express();
+const server = http.createServer(app)
 const port = process.env.PORT || 3000;
 
 // إعدادات Express
@@ -20,28 +24,76 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(
-  cors({
-    origin: function (origin, callback) {
-      const allowedOrigins = [
-        "https://natheer777.github.io",
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:5500",
-        "https://academy-backend-pq91.onrender.com",
-        "https://japaneseacademy.online",
-      ];
-      if (allowedOrigins.includes(origin) || !origin) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-  })
-);
 
+    cors({
+      origin: function (origin, callback) {
+        const allowedOrigins = [
+          "https://natheer777.github.io",
+          "http://localhost:3000/socket.io/?EIO=4&transport=polling&t=yjhxo98e",
+          "http://localhost:5173",
+          "https://academy-backend-pq91.onrender.com",
+          "https://japaneseacademy.online",
+        ];
+        if (allowedOrigins.includes(origin) || !origin) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
+      methods: ['GET', 'POST', 'DELETE', 'PUT'], // إضافة الطرق المسموحة
+    })
+  );
+app.use(cors())
 app.use(router);
 app.use(express.static(path.join(__dirname, "public")));
-//////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173", // عنوان الواجهة الأمامية
+    methods: ["GET", "POST"],
+  },
+});
+
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  // حدث لإنشاء غرفة
+  socket.on("create-room", () => {
+    const roomId = Math.random().toString(36).substring(2, 10); // إنشاء ID عشوائي للغرفة
+    socket.join(roomId); // انضمام المستخدم للغرفة
+    socket.emit("room-created", { roomId }); // إرسال ID الغرفة للعميل
+  });
+
+  // حدث للانضمام لغرفة
+  socket.on("join-room", ({ roomId }) => {
+    socket.join(roomId);
+    socket.to(roomId).emit("user-joined", { userId: socket.id }); // إشعار باقي المستخدمين
+  });
+
+  // حدث مغادرة الغرفة
+  socket.on("leave-room", ({ roomId }) => {
+    socket.leave(roomId);
+    socket.to(roomId).emit("user-left", { userId: socket.id });
+  });
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////
 
 app.get("/accept-cookies", (req, res) => {
   res.cookie("acceptCookies", "true", { maxAge: 30 * 24 * 60 * 60 * 1000 });
@@ -177,48 +229,7 @@ app.post("/verify", async (req, res) => {
   }
 });
 
-// نقطة نهاية لتسجيل الدخول مع توليد رمز JWT
-// app.post("/login_user", async (req, res) => {
-//   const { email, password } = req.body;
-
-//   if (!email || !password) {
-//     return res
-//       .status(400)
-//       .json({ message: "Email and password are required." });
-//   }
-
-//   try {
-//     const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
-//       email,
-//     ]);
-
-//     if (rows.length === 0) {
-//       return res.status(404).json({ message: "User not found." });
-//     }
-
-//     const user = rows[0];
-//     const hash = user.password;
-
-//     const isMatch = await bcrypt.compare(password, hash);
-
-//     if (isMatch) {
-//       const token = jwt.sign(
-//         { id: user.id, email: user.email },
-//         process.env.JWT_SECRET,
-//         { expiresIn: "1h" }
-//       );
-
-//       res.status(200).json({ message: "Login successful!", token, user });
-//     } else {
-//       res.status(401).json({ message: "Invalid password." });
-//     }
-//   } catch (error) {
-//     console.error("Error during login:", error);
-//     res.status(500).json({ message: "Server error." });
-//   }
-// });
-
-
+////////////////////////////////////
 
 app.post("/login_user", async (req, res) => {
   const { email, password } = req.body;
@@ -265,9 +276,6 @@ app.post("/login_user", async (req, res) => {
   }
 });
 
-
-
-
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1]; // التأكد من وجود Bearer
@@ -286,7 +294,6 @@ const authenticateToken = (req, res, next) => {
     next();
   });
 };
-
 
 // نقطة نهاية للحصول على بيانات المستخدم المسجل
 app.get("/user", authenticateToken, async (req, res) => {
@@ -309,6 +316,6 @@ app.get("/user", authenticateToken, async (req, res) => {
 
 //////////////////////////////////////
 
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Server is running on port http://localhost:${port}`);
 });
