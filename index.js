@@ -119,7 +119,6 @@ app.use(express.static(path.join(__dirname, "public")));
 // });
 
 
-
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -139,7 +138,7 @@ io.on("connection", (socket) => {
     const roomId = `room-${Math.random().toString(36).substring(2, 9)}`;
     rooms.set(roomId, {
       teacherId,
-      connections: new Set([socket.id]),
+      students: new Set(),
     });
 
     socket.join(roomId);
@@ -152,7 +151,7 @@ io.on("connection", (socket) => {
   socket.on("join-room", ({ roomId, studentId }) => {
     const room = rooms.get(roomId);
     if (room) {
-      room.connections.add(socket.id);
+      room.students.add(socket.id);
       socket.join(roomId);
       socket.roomId = roomId;
       io.to(roomId).emit("peer-connected", { peerId: socket.id });
@@ -167,22 +166,44 @@ io.on("connection", (socket) => {
     io.to(to).emit("signal", { from: socket.id, signalData });
   });
 
+  // End room (teacher only)
+  socket.on("end-room", () => {
+    const room = rooms.get(socket.roomId);
+    if (room && room.teacherId === socket.id) {
+      io.to(socket.roomId).emit("room-ended");
+      rooms.delete(socket.roomId);
+      console.log(`Room ${socket.roomId} ended`);
+    }
+  });
+
+  // Leave room (student)
+  socket.on("leave-room", () => {
+    const room = rooms.get(socket.roomId);
+    if (room) {
+      room.students.delete(socket.id);
+      socket.leave(socket.roomId);
+      io.to(socket.roomId).emit("peer-disconnected", { peerId: socket.id });
+      console.log(`User ${socket.id} left room ${socket.roomId}`);
+    }
+  });
+
   // Handle disconnect
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
     if (socket.roomId) {
       const room = rooms.get(socket.roomId);
       if (room) {
-        room.connections.delete(socket.id);
+        room.students.delete(socket.id);
         io.to(socket.roomId).emit("peer-disconnected", { peerId: socket.id });
 
-        if (room.connections.size === 0) {
+        if (room.students.size === 0 && room.teacherId === socket.id) {
           rooms.delete(socket.roomId);
         }
       }
     }
   });
 });
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
