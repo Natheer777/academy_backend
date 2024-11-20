@@ -8,7 +8,7 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const db = require("./config/config");
 const cookieParser = require("cookie-parser");
-const http = require("http");
+// const http = require("http");
 // const { Server } = require("socket.io");
 // const { Server } = require('socket.io');
 // const server = require('http').createServer();
@@ -50,128 +50,71 @@ app.use(router);
 app.use(express.static(path.join(__dirname, "public")));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-// const server = createServer(app);
-// const io = new Server(server, {
-//   cors: {
-//     origin: ["https://japaneseacademy.online", "http://localhost:5173"],
-//     methods: ["GET", "POST", "DELETE", "PUT"],
-//   },
-// });
-
-// const rooms = new Map();
-
-// io.on('connection', (socket) => {
-//   console.log('User connected:', socket.id);
-
-//   socket.on('create-room', (teacherId) => {
-//     const roomId = `room-${Math.random().toString(36).substring(2, 9)}`;
-//     rooms.set(roomId, {
-//       teacherId,
-//       students: new Set(),
-//       connections: new Set([socket.id])
-//     });
-    
-//     socket.join(roomId);
-//     socket.roomId = roomId; // Store roomId in socket object
-//     console.log(`Room created by teacher ${teacherId} with ID: ${roomId}`);
-//     io.emit('room-opened', { roomId, teacherId });
-//   });
-
-//   socket.on('join-room', ({ roomId, studentId }) => {
-//     const room = rooms.get(roomId);
-//     if (room) {
-//       room.students.add(studentId);
-//       room.connections.add(socket.id);
-//       socket.join(roomId);
-//       socket.roomId = roomId; // Store roomId in socket object
-//       socket.to(roomId).emit('student-joined', { studentId: socket.id });
-//       console.log(`Student ${studentId} joined room ${roomId}`);
-//     } else {
-//       socket.emit('error', { message: 'Room not found' });
-//     }
-//   });
-
-//   socket.on('signal', ({ roomId, signalData, to }) => {
-//     console.log('Signal received:', { from: socket.id, to, type: signalData.type || 'candidate' });
-//     if (to) {
-//       io.to(to).emit('signal', { from: socket.id, signalData });
-//     } else {
-//       socket.to(roomId).emit('signal', { from: socket.id, signalData });
-//     }
-//   });
-
-//   socket.on('disconnect', () => {
-//     console.log(`User ${socket.id} disconnected`);
-//     if (socket.roomId) {
-//       const room = rooms.get(socket.roomId);
-//       if (room) {
-//         room.connections.delete(socket.id);
-//         io.to(socket.roomId).emit('peer-disconnected', { peerId: socket.id });
-        
-//         if (room.connections.size === 0) {
-//           rooms.delete(socket.roomId);
-//         }
-//       }
-//     }
-//   });
-// });
-
-
-const server = http.createServer(app);
-
+const server = createServer(app);
 const io = new Server(server, {
   cors: {
     origin: ["https://japaneseacademy.online", "http://localhost:5173"],
-    methods: ["GET", "POST"],
+    methods: ["GET", "POST", "DELETE", "PUT"],
   },
 });
 
-let rooms = {};  // هذا سيحتفظ بحالة الغرف
+const rooms = new Map();
 
-// عندما ينضم طالب إلى غرفة
-io.on('connection', socket => {
-    console.log('A user connected:', socket.id);
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
 
-    // عند إنشاء الغرفة من قبل المعلم
-    socket.on('createRoom', roomId => {
-        rooms[roomId] = { teacher: socket.id, students: [] };
-        socket.join(roomId);
-        io.to(socket.id).emit('waitingForTeacher');  // للطالب الانتظار
-        console.log(`Room ${roomId} created by teacher ${socket.id}`);
+  socket.on('create-room', (teacherId) => {
+    const roomId = `room-${Math.random().toString(36).substring(2, 9)}`;
+    rooms.set(roomId, {
+      teacherId,
+      students: new Set(),
+      connections: new Set([socket.id])
     });
+    
+    socket.join(roomId);
+    socket.roomId = roomId; // Store roomId in socket object
+    console.log(`Room created by teacher ${teacherId} with ID: ${roomId}`);
+    io.emit('room-opened', { roomId, teacherId });
+  });
 
-    // عندما ينضم طالب إلى الغرفة
-    socket.on('joinRoom', roomId => {
-        if (rooms[roomId]) {
-            rooms[roomId].students.push(socket.id);
-            socket.join(roomId);
-            io.to(roomId).emit('studentJoined', socket.id);  // notify the room when a student joins
-            console.log(`Student ${socket.id} joined room ${roomId}`);
+  socket.on('join-room', ({ roomId, studentId }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      room.students.add(studentId);
+      room.connections.add(socket.id);
+      socket.join(roomId);
+      socket.roomId = roomId; // Store roomId in socket object
+      socket.to(roomId).emit('student-joined', { studentId: socket.id });
+      console.log(`Student ${studentId} joined room ${roomId}`);
+    } else {
+      socket.emit('error', { message: 'Room not found' });
+    }
+  });
+
+  socket.on('signal', ({ roomId, signalData, to }) => {
+    console.log('Signal received:', { from: socket.id, to, type: signalData.type || 'candidate' });
+    if (to) {
+      io.to(to).emit('signal', { from: socket.id, signalData });
+    } else {
+      socket.to(roomId).emit('signal', { from: socket.id, signalData });
+    }
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`User ${socket.id} disconnected`);
+    if (socket.roomId) {
+      const room = rooms.get(socket.roomId);
+      if (room) {
+        room.connections.delete(socket.id);
+        io.to(socket.roomId).emit('peer-disconnected', { peerId: socket.id });
+        
+        if (room.connections.size === 0) {
+          rooms.delete(socket.roomId);
         }
-    });
-
-    // عندما يبدأ المعلم الغرفة
-    socket.on('startRoom', roomId => {
-        if (rooms[roomId] && rooms[roomId].teacher === socket.id) {
-            io.to(roomId).emit('roomStarted');  // notify students that the room has started
-            console.log(`Room ${roomId} started by teacher ${socket.id}`);
-        }
-    });
-
-    // عند مغادرة الغرفة من قبل الطالب أو المعلم
-    socket.on('leaveRoom', roomId => {
-        socket.leave(roomId);
-        console.log(`${socket.id} left room ${roomId}`);
-    });
-
-    socket.on('disconnect', () => {
-        console.log('A user disconnected');
-    });
+      }
+    }
+  });
 });
-
-
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 app.get("/accept-cookies", (req, res) => {
