@@ -8,13 +8,16 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const db = require("./config/config");
 const cookieParser = require("cookie-parser");
-const http = require('http')
-const {Server} = require('socket.io') 
+// const http = require("http");
+// const { Server } = require("socket.io");
+// const { Server } = require('socket.io');
+// const server = require('http').createServer();
+const { createServer } =require('http');
+const { Server } = require('socket.io');
 require("dotenv").config();
 
-
 const app = express();
-const server = http.createServer(app)
+// const server = http.createServer(app);
 const port = process.env.PORT || 3000;
 
 // إعدادات Express
@@ -24,75 +27,95 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(
-
-    cors({
-      origin: function (origin, callback) {
-        const allowedOrigins = [
-          "https://natheer777.github.io",
-          "http://localhost:3000/socket.io/?EIO=4&transport=polling&t=yjhxo98e",
-          "http://localhost:5173",
-          "https://academy-backend-pq91.onrender.com",
-          "https://japaneseacademy.online",
-        ];
-        if (allowedOrigins.includes(origin) || !origin) {
-          callback(null, true);
-        } else {
-          callback(new Error("Not allowed by CORS"));
-        }
-      },
-      methods: ['GET', 'POST', 'DELETE', 'PUT'], // إضافة الطرق المسموحة
-    })
-  );
-app.use(cors())
+  cors({
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        "https://natheer777.github.io",
+        "http://localhost:3000/socket.io/?EIO=4&transport=polling&t=yjhxo98e",
+        "http://localhost:5173",
+        "https://academy-backend-pq91.onrender.com",
+        "https://japaneseacademy.online",
+      ];
+      if (allowedOrigins.includes(origin) || !origin) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    methods: ["GET", "POST", "DELETE", "PUT"], // إضافة الطرق المسموحة
+  })
+);
+app.use(cors());
 app.use(router);
 app.use(express.static(path.join(__dirname, "public")));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
+const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "https://japaneseacademy.online", 
-    // عنوان الواجهة الأمامية
-    methods: ["GET", "POST"],
+    origin: ["https://japaneseacademy.online", "http://localhost:5173"],
+    methods: ["GET", "POST", "DELETE", "PUT"],
   },
 });
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+const rooms = new Map();
 
-  // حدث لإنشاء غرفة
-  socket.on("create-room", () => {
-    const roomId = Math.random().toString(36).substring(2, 10); // إنشاء ID عشوائي للغرفة
-    socket.join(roomId); // انضمام المستخدم للغرفة
-    socket.emit("room-created", { roomId }); // إرسال ID الغرفة للعميل
-  });
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
 
-  // حدث للانضمام لغرفة
-  socket.on("join-room", ({ roomId }) => {
+  // إنشاء غرفة جديدة
+  socket.on('create-room', (teacherId) => {
+    const roomId = `room-${Math.random().toString(36).substring(2, 9)}`;
+    rooms.set(roomId, {
+      teacherId,
+      students: new Set(),
+      connections: new Set([socket.id])
+    });
+    
     socket.join(roomId);
-    socket.to(roomId).emit("user-joined", { userId: socket.id }); // إشعار باقي المستخدمين
+    console.log(`Room created by teacher ${teacherId} with ID: ${roomId}`);
+    io.emit('room-opened', { roomId, teacherId });
   });
 
-  // حدث مغادرة الغرفة
-  socket.on("leave-room", ({ roomId }) => {
-    socket.leave(roomId);
-    socket.to(roomId).emit("user-left", { userId: socket.id });
+  // انضمام إلى غرفة
+  socket.on('join-room', ({ roomId, studentId }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      room.students.add(studentId);
+      room.connections.add(socket.id);
+      socket.join(roomId);
+      io.to(roomId).emit('student-joined', { studentId });
+      console.log(`Student ${studentId} joined room ${roomId}`);
+    } else {
+      socket.emit('error', { message: 'Room not found' });
+    }
+  });
+
+  // معالجة إشارات WebRTC
+  socket.on('signal', ({ roomId, signalData, to }) => {
+    if (to) {
+      io.to(to).emit('signal', { from: socket.id, signalData });
+    } else {
+      socket.to(roomId).emit('signal', { from: socket.id, signalData });
+    }
+  });
+
+  // معالجة قطع الاتصال
+  socket.on('disconnect', () => {
+    console.log(`User ${socket.id} disconnected`);
+    rooms.forEach((room, roomId) => {
+      if (room.connections.has(socket.id)) {
+        room.connections.delete(socket.id);
+        io.to(roomId).emit('peer-disconnected', { peerId: socket.id });
+        
+        if (room.connections.size === 0) {
+          rooms.delete(roomId);
+        }
+      }
+    });
   });
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
