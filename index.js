@@ -50,7 +50,6 @@ app.use(router);
 app.use(express.static(path.join(__dirname, "public")));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
@@ -64,7 +63,6 @@ const rooms = new Map();
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // إنشاء غرفة جديدة
   socket.on('create-room', (teacherId) => {
     const roomId = `room-${Math.random().toString(36).substring(2, 9)}`;
     rooms.set(roomId, {
@@ -74,26 +72,27 @@ io.on('connection', (socket) => {
     });
     
     socket.join(roomId);
+    socket.roomId = roomId; // Store roomId in socket object
     console.log(`Room created by teacher ${teacherId} with ID: ${roomId}`);
     io.emit('room-opened', { roomId, teacherId });
   });
 
-  // انضمام إلى غرفة
   socket.on('join-room', ({ roomId, studentId }) => {
     const room = rooms.get(roomId);
     if (room) {
       room.students.add(studentId);
       room.connections.add(socket.id);
       socket.join(roomId);
-      io.to(roomId).emit('student-joined', { studentId });
+      socket.roomId = roomId; // Store roomId in socket object
+      socket.to(roomId).emit('student-joined', { studentId: socket.id });
       console.log(`Student ${studentId} joined room ${roomId}`);
     } else {
       socket.emit('error', { message: 'Room not found' });
     }
   });
 
-  // معالجة إشارات WebRTC
   socket.on('signal', ({ roomId, signalData, to }) => {
+    console.log('Signal received:', { from: socket.id, to, type: signalData.type || 'candidate' });
     if (to) {
       io.to(to).emit('signal', { from: socket.id, signalData });
     } else {
@@ -101,22 +100,21 @@ io.on('connection', (socket) => {
     }
   });
 
-  // معالجة قطع الاتصال
   socket.on('disconnect', () => {
     console.log(`User ${socket.id} disconnected`);
-    rooms.forEach((room, roomId) => {
-      if (room.connections.has(socket.id)) {
+    if (socket.roomId) {
+      const room = rooms.get(socket.roomId);
+      if (room) {
         room.connections.delete(socket.id);
-        io.to(roomId).emit('peer-disconnected', { peerId: socket.id });
+        io.to(socket.roomId).emit('peer-disconnected', { peerId: socket.id });
         
         if (room.connections.size === 0) {
-          rooms.delete(roomId);
+          rooms.delete(socket.roomId);
         }
       }
-    });
+    }
   });
 });
-
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 app.get("/accept-cookies", (req, res) => {
