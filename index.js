@@ -35,7 +35,7 @@ app.use(
         "http://localhost:5173",
         "https://academy-backend-pq91.onrender.com",
         "https://japaneseacademy.online",
-        "https://be32-93-118-51-79.ngrok-free.app"
+        "https://4bf1-95-159-10-198.ngrok-free.app "
       ];
       if (allowedOrigins.includes(origin) || !origin) {
         callback(null, true);
@@ -55,7 +55,7 @@ app.use(express.static(path.join(__dirname, "public")));
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["https://japaneseacademy.online", "http://localhost:5173","https://be32-93-118-51-79.ngrok-free.app"],
+    origin: ["https://japaneseacademy.online", "http://localhost:5173","https://4bf1-95-159-10-198.ngrok-free.app"],
     methods: ["GET", "POST"],
   },
   pingTimeout: 60000,
