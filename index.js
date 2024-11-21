@@ -55,64 +55,77 @@ const server = createServer(app);
 const io = new Server(server, {
   cors: {
     origin: ["https://japaneseacademy.online", "http://localhost:5173"],
-    methods: ["GET", "POST", "DELETE", "PUT"],
+    methods: ["GET", "POST"],
   },
   pingTimeout: 60000,
   pingInterval: 25000,
-  transports: ['websocket', 'polling'],
+  transports: ["websocket", "polling"],
 });
 
 const rooms = new Map();
 
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
 
-  socket.on('join-room', ({ roomId, userId }) => {
-    if (!rooms.has(roomId)) {
-      rooms.set(roomId, new Set());
-    }
-
-    const participants = rooms.get(roomId);
-    participants.add(socket.id);
+  socket.on("create-room", (teacherId) => {
+    const roomId = `room-${Math.random().toString(36).substring(2, 9)}`;
+    rooms.set(roomId, {
+      teacherId,
+      students: new Set(),
+      connections: new Set([socket.id]),
+    });
 
     socket.join(roomId);
     socket.roomId = roomId;
-    socket.userId = userId;
-
-    // Notify existing participants about the new user
-    socket.to(roomId).emit('user-joined', { userId: socket.id });
-
-    // Send the list of existing participants to the new user
-    const existingParticipants = Array.from(participants).filter(id => id !== socket.id);
-    socket.emit('existing-participants', existingParticipants);
-
-    console.log(`User ${userId} joined room ${roomId}`);
+    console.log(`Room created by teacher ${teacherId} with ID: ${roomId}`);
+    io.emit("room-opened", { roomId, teacherId });
   });
 
-  socket.on('signal', ({ targetId, signalData }) => {
-    console.log(`Signal from ${socket.id} to ${targetId}`);
-    socket.to(targetId).emit('signal', {
-      from: socket.id,
-      signalData,
-    });
+  socket.on("join-room", ({ roomId, studentId }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      room.students.add(studentId);
+      room.connections.add(socket.id);
+      socket.join(roomId);
+      socket.roomId = roomId;
+      io.to(roomId).emit("student-joined", { studentId: socket.id });
+      console.log(`Student ${studentId} joined room ${roomId}`);
+    } else {
+      socket.emit("error", { message: "Room not found" });
+    }
   });
 
-  socket.on('disconnect', () => {
+  socket.on("signal", ({ roomId, signalData }) => {
+    console.log(`Signal from ${socket.id} in room ${roomId}`);
+    socket.to(roomId).emit("signal", { from: socket.id, signalData });
+  });
+
+  socket.on("end-room", (roomId) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      io.to(roomId).emit("room-closed");
+      rooms.delete(roomId);
+      console.log(`Room ${roomId} closed by teacher`);
+    }
+  });
+
+  socket.on("disconnect", () => {
     console.log(`User ${socket.id} disconnected`);
-    const roomId = socket.roomId;
-    if (roomId) {
-      const participants = rooms.get(roomId);
-      if (participants) {
-        participants.delete(socket.id);
-        socket.to(roomId).emit('user-disconnected', { userId: socket.id });
-        if (participants.size === 0) {
-          rooms.delete(roomId);
-          console.log(`Room ${roomId} removed due to no participants`);
+    if (socket.roomId) {
+      const room = rooms.get(socket.roomId);
+      if (room) {
+        room.connections.delete(socket.id);
+        io.to(socket.roomId).emit("peer-disconnected", { peerId: socket.id });
+
+        if (room.connections.size === 0) {
+          rooms.delete(socket.roomId);
+          console.log(`Room ${socket.roomId} removed due to no participants`);
         }
       }
     }
   });
 });
+
 
 
 
