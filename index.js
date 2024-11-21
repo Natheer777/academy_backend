@@ -50,6 +50,7 @@ app.use(router);
 app.use(express.static(path.join(__dirname, "public")));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
+
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
@@ -58,7 +59,7 @@ const io = new Server(server, {
   },
   pingTimeout: 60000,
   pingInterval: 25000,
-  transports: ['websocket', 'polling']
+  transports: ['websocket', 'polling'],
 });
 
 const rooms = new Map();
@@ -71,9 +72,9 @@ io.on('connection', (socket) => {
     rooms.set(roomId, {
       teacherId,
       students: new Set(),
-      connections: new Set([socket.id])
+      connections: new Set([socket.id]),
     });
-    
+
     socket.join(roomId);
     socket.roomId = roomId;
     console.log(`Room created by teacher ${teacherId} with ID: ${roomId}`);
@@ -87,8 +88,7 @@ io.on('connection', (socket) => {
       room.connections.add(socket.id);
       socket.join(roomId);
       socket.roomId = roomId;
-      
-      // Notify all clients in the room about the new student
+
       io.to(roomId).emit('student-joined', { studentId: socket.id });
       console.log(`Student ${studentId} joined room ${roomId}`);
     } else {
@@ -96,11 +96,11 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('signal', ({ roomId, signalData }) => {
+  socket.on('signal', ({ roomId, signalData, targetId }) => {
     console.log(`Signal from ${socket.id} in room ${roomId}`, signalData.type || 'candidate');
-    socket.to(roomId).emit('signal', {
+    socket.to(targetId).emit('signal', {
       from: socket.id,
-      signalData
+      signalData,
     });
   });
 
@@ -119,9 +119,9 @@ io.on('connection', (socket) => {
       const room = rooms.get(socket.roomId);
       if (room) {
         room.connections.delete(socket.id);
+
         io.to(socket.roomId).emit('peer-disconnected', { peerId: socket.id });
-        
-        // If no connections left in the room, remove it
+
         if (room.connections.size === 0) {
           rooms.delete(socket.roomId);
           console.log(`Room ${socket.roomId} removed due to no participants`);
@@ -130,6 +130,7 @@ io.on('connection', (socket) => {
     }
   });
 });
+
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
