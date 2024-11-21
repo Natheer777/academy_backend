@@ -50,6 +50,7 @@ app.use(router);
 app.use(express.static(path.join(__dirname, "public")));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
+
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
@@ -72,7 +73,7 @@ io.on('connection', (socket) => {
     });
     
     socket.join(roomId);
-    socket.roomId = roomId; // Store roomId in socket object
+    socket.roomId = roomId;
     console.log(`Room created by teacher ${teacherId} with ID: ${roomId}`);
     io.emit('room-opened', { roomId, teacherId });
   });
@@ -83,16 +84,24 @@ io.on('connection', (socket) => {
       room.students.add(studentId);
       room.connections.add(socket.id);
       socket.join(roomId);
-      socket.roomId = roomId; // Store roomId in socket object
-      socket.to(roomId).emit('student-joined', { studentId: socket.id });
+      socket.roomId = roomId;
+      io.to(roomId).emit('student-joined', { studentId: socket.id });
       console.log(`Student ${studentId} joined room ${roomId}`);
     } else {
       socket.emit('error', { message: 'Room not found' });
     }
   });
 
+  socket.on('end-room', (roomId) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      io.to(roomId).emit('room-closed');
+      rooms.delete(roomId);
+      console.log(`Room ${roomId} closed by teacher`);
+    }
+  });
+
   socket.on('signal', ({ roomId, signalData, to }) => {
-    console.log('Signal received:', { from: socket.id, to, type: signalData.type || 'candidate' });
     if (to) {
       io.to(to).emit('signal', { from: socket.id, signalData });
     } else {
@@ -115,6 +124,7 @@ io.on('connection', (socket) => {
     }
   });
 });
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 app.get("/accept-cookies", (req, res) => {
