@@ -50,13 +50,14 @@ app.use(router);
 app.use(express.static(path.join(__dirname, "public")));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
-
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
     origin: ["https://japaneseacademy.online", "http://localhost:5173"],
     methods: ["GET", "POST", "DELETE", "PUT"],
   },
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
 const rooms = new Map();
@@ -86,7 +87,6 @@ io.on('connection', (socket) => {
       socket.join(roomId);
       socket.roomId = roomId;
       io.to(roomId).emit('student-joined', { studentId: socket.id });
-      console.log(`Student ${studentId} joined room ${roomId}`);
     } else {
       socket.emit('error', { message: 'Room not found' });
     }
@@ -101,7 +101,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('signal', ({ roomId, signalData, to }) => {
+  socket.on('signal', ({ roomId, to, signalData }) => {
     if (to) {
       io.to(to).emit('signal', { from: socket.id, signalData });
     } else {
