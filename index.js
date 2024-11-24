@@ -34,7 +34,7 @@ app.use(
         "http://localhost:5173",
         "https://academy-backend-pq91.onrender.com",
         "https://japaneseacademy.online",
-        "https://4bf1-95-159-10-198.ngrok-free.app ",
+        "https://164b-95-159-63-120.ngrok-free.app ",
       ];
       if (allowedOrigins.includes(origin) || !origin) {
         callback(null, true);
@@ -54,47 +54,77 @@ app.use(express.static(path.join(__dirname, "public")));
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["https://japaneseacademy.online", "http://localhost:5173","https://4bf1-95-159-10-198.ngrok-free.app"],
+    origin: ["https://japaneseacademy.online", "http://localhost:5173","https://164b-95-159-63-120.ngrok-free.app "],
     methods: ["GET", "POST"],
   },
   pingTimeout: 60000,
   pingInterval: 25000,
-  transports: ["websocket", "polling"],
+  transports: ["websocket"],
 });
 
-const rooms = new Map();
+// const rooms = new Map();
 
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('A user connected: ' + socket.id);
 
-  socket.on('create-room', (teacherId) => {
-    const roomId = `room-${Math.random().toString(36).substring(2, 9)}`;
-    rooms.set(roomId, { teacherId, students: new Set(), connections: new Set([socket.id]) });
+  // إرسال الإشارة عندما يتصل أحد الطلاب
+  socket.on('join-room', (roomId) => {
     socket.join(roomId);
-    socket.roomId = roomId;
-    io.emit('room-opened', { roomId, teacherId });
+    console.log('Student joined room: ' + roomId);
   });
 
-  socket.on('join-room', ({ roomId, studentId }) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      room.students.add(studentId);
-      room.connections.add(socket.id);
-      socket.join(roomId);
-      io.to(roomId).emit('student-joined', { studentId });
-    }
+  // إرسال إشارة لمكالمات WebRTC
+  socket.on('signal', (data) => {
+    console.log('Signal received:', data);
+    io.to(data.roomId).emit('signal', data.signalData);
   });
 
-  socket.on('end-room', (roomId) => {
-    const room = rooms.get(roomId);
-    if (room) {
-      io.to(roomId).emit('room-closed');
-      room.connections.forEach((id) => io.sockets.sockets.get(id)?.leave(roomId));
-      rooms.delete(roomId);
-    }
+  // التعامل مع مغادرة الغرفة
+  socket.on('disconnect', () => {
+    console.log('User disconnected');
   });
 });
+
+
+// io.on('connection', (socket) => {
+//   console.log('User connected:', socket.id);
+
+//   socket.on('create-room', (teacherId) => {
+//     // تحقق إذا كانت الغرفة موجودة بالفعل
+//     const existingRoom = [...rooms.values()].find(room => room.teacherId === teacherId);
+    
+//     if (existingRoom) {
+//       socket.emit('room-already-exists', existingRoom.roomId);
+//     } else {
+//       const roomId = `room-${Math.random().toString(36).substring(2, 9)}`;
+//       rooms.set(roomId, { teacherId, students: new Set(), connections: new Set([socket.id]) });
+//       socket.join(roomId);
+//       socket.roomId = roomId;
+//       io.emit('room-opened', { roomId, teacherId });
+//     }
+//   });
+  
+//   socket.on('join-room', ({ roomId, studentId }) => {
+//     const room = rooms.get(roomId);
+//     if (room && !room.students.has(studentId)) {
+//       room.students.add(studentId);
+//       room.connections.add(socket.id);
+//       socket.join(roomId);
+//       io.to(roomId).emit('student-joined', { studentId });
+//     }
+//   });
+  
+
+//   socket.on('end-room', (roomId) => {
+//     const room = rooms.get(roomId);
+//     if (room) {
+//       io.to(roomId).emit('room-closed');
+//       room.connections.forEach((id) => io.sockets.sockets.get(id)?.leave(roomId));
+//       rooms.delete(roomId);
+//     }
+//   });
+// });
 
 
 
