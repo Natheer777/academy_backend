@@ -8,16 +8,18 @@ const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const db = require("./config/config");
 const cookieParser = require("cookie-parser");
-// const http = require("http");
+const http = require("http");
+const socketIo = require('socket.io');
+
 // const { Server } = require("socket.io");
 // const { Server } = require('socket.io');
 // const server = require('http').createServer();
-const { createServer } =require('http');
-const { Server } = require('socket.io');
+// const { createServer } =require('http');
+// const { Server } = require('socket.io');
 require("dotenv").config();
 
 const app = express();
-// const server = http.createServer(app);
+const server = http.createServer(app);
 const port = process.env.PORT || 3000;
 
 // إعدادات Express
@@ -51,8 +53,10 @@ app.use(express.static(path.join(__dirname, "public")));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-const server = createServer(app);
-const io = new Server(server, {
+// const server = createServer(app);
+// const io = socketIo(server);
+
+const io = socketIo(server, {
   cors: {
     origin: ["https://japaneseacademy.online", "http://localhost:5173","https://164b-95-159-63-120.ngrok-free.app "],
     methods: ["GET", "POST"],
@@ -62,29 +66,48 @@ const io = new Server(server, {
   transports: ["websocket"],
 });
 
-// const rooms = new Map();
 
+
+let clients = {};
 
 io.on('connection', (socket) => {
-  console.log('A user connected: ' + socket.id);
+  console.log('A user connected:', socket.id);
 
-  // إرسال الإشارة عندما يتصل أحد الطلاب
-  socket.on('join-room', (roomId) => {
+  socket.on('join-room', (roomId, userId) => {
+    if (!clients[roomId]) {
+      clients[roomId] = [];
+    }
+    clients[roomId].push({ socketId: socket.id, userId });
+    console.log(`User ${userId} joined room ${roomId}`);
+
     socket.join(roomId);
-    console.log('Student joined room: ' + roomId);
+    // Notify other user in the room
+    socket.to(roomId).emit('user-connected', userId);
   });
 
-  // إرسال إشارة لمكالمات WebRTC
   socket.on('signal', (data) => {
-    console.log('Signal received:', data);
-    io.to(data.roomId).emit('signal', data.signalData);
+    const { roomId, signalData, to } = data;
+    socket.to(roomId).emit('signal', { from: socket.id, signalData, to });
   });
 
-  // التعامل مع مغادرة الغرفة
   socket.on('disconnect', () => {
-    console.log('User disconnected');
+    console.log('User disconnected:', socket.id);
+    for (const roomId in clients) {
+      const index = clients[roomId].findIndex((client) => client.socketId === socket.id);
+      if (index !== -1) {
+        clients[roomId].splice(index, 1);
+        socket.to(roomId).emit('user-disconnected', socket.id);
+        break;
+      }
+    }
   });
 });
+
+//////////////////////////////////
+
+
+
+// const rooms = new Map();
 
 
 // io.on('connection', (socket) => {
@@ -127,7 +150,7 @@ io.on('connection', (socket) => {
 // });
 
 
-
+///////////////
 
 
 
