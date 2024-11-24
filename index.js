@@ -35,7 +35,8 @@ app.use(
         "http://localhost:5173",
         "https://academy-backend-pq91.onrender.com",
         "https://japaneseacademy.online",
-        "https://4bf1-95-159-10-198.ngrok-free.app "
+        "https://4bf1-95-159-10-198.ngrok-free.app ",
+        "http://localhost:5174"
       ];
       if (allowedOrigins.includes(origin) || !origin) {
         callback(null, true);
@@ -55,7 +56,7 @@ app.use(express.static(path.join(__dirname, "public")));
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["https://japaneseacademy.online", "http://localhost:5173","https://4bf1-95-159-10-198.ngrok-free.app"],
+    origin: ["https://japaneseacademy.online", "http://localhost:5173","https://4bf1-95-159-10-198.ngrok-free.app","http://localhost:5174"],
     methods: ["GET", "POST"],
   },
   pingTimeout: 60000,
@@ -65,67 +66,104 @@ const io = new Server(server, {
 
 const rooms = new Map();
 
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
 
-  socket.on("create-room", (teacherId) => {
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  socket.on('create-room', (teacherId) => {
     const roomId = `room-${Math.random().toString(36).substring(2, 9)}`;
-    rooms.set(roomId, {
-      teacherId,
-      students: new Set(),
-      connections: new Set([socket.id]),
-    });
-
+    rooms.set(roomId, { teacherId, students: new Set(), connections: new Set([socket.id]) });
     socket.join(roomId);
     socket.roomId = roomId;
-    console.log(`Room created by teacher ${teacherId} with ID: ${roomId}`);
-    io.emit("room-opened", { roomId, teacherId });
+    io.emit('room-opened', { roomId, teacherId });
   });
 
-  socket.on("join-room", ({ roomId, studentId }) => {
+  socket.on('join-room', ({ roomId, studentId }) => {
     const room = rooms.get(roomId);
     if (room) {
       room.students.add(studentId);
       room.connections.add(socket.id);
       socket.join(roomId);
-      socket.roomId = roomId;
-      io.to(roomId).emit("student-joined", { studentId: socket.id });
-      console.log(`Student ${studentId} joined room ${roomId}`);
-    } else {
-      socket.emit("error", { message: "Room not found" });
+      io.to(roomId).emit('student-joined', { studentId });
     }
   });
 
-  socket.on("signal", ({ roomId, signalData }) => {
-    console.log(`Signal from ${socket.id} in room ${roomId}`);
-    socket.to(roomId).emit("signal", { from: socket.id, signalData });
-  });
-
-  socket.on("end-room", (roomId) => {
+  socket.on('end-room', (roomId) => {
     const room = rooms.get(roomId);
     if (room) {
-      io.to(roomId).emit("room-closed");
+      io.to(roomId).emit('room-closed');
+      room.connections.forEach((id) => io.sockets.sockets.get(id)?.leave(roomId));
       rooms.delete(roomId);
-      console.log(`Room ${roomId} closed by teacher`);
-    }
-  });
-
-  socket.on("disconnect", () => {
-    console.log(`User ${socket.id} disconnected`);
-    if (socket.roomId) {
-      const room = rooms.get(socket.roomId);
-      if (room) {
-        room.connections.delete(socket.id);
-        io.to(socket.roomId).emit("peer-disconnected", { peerId: socket.id });
-
-        if (room.connections.size === 0) {
-          rooms.delete(socket.roomId);
-          console.log(`Room ${socket.roomId} removed due to no participants`);
-        }
-      }
     }
   });
 });
+
+
+
+
+
+
+// io.on("connection", (socket) => {
+//   console.log("User connected:", socket.id);
+
+//   socket.on("create-room", (teacherId) => {
+//     const roomId = `room-${Math.random().toString(36).substring(2, 9)}`;
+//     rooms.set(roomId, {
+//       teacherId,
+//       students: new Set(),
+//       connections: new Set([socket.id]),
+//     });
+
+//     socket.join(roomId);
+//     socket.roomId = roomId;
+//     console.log(`Room created by teacher ${teacherId} with ID: ${roomId}`);
+//     io.emit("room-opened", { roomId, teacherId });
+//   });
+
+//   socket.on("join-room", ({ roomId, studentId }) => {
+//     const room = rooms.get(roomId);
+//     if (room) {
+//       room.students.add(studentId);
+//       room.connections.add(socket.id);
+//       socket.join(roomId);
+//       socket.roomId = roomId;
+//       io.to(roomId).emit("student-joined", { studentId: socket.id });
+//       console.log(`Student ${studentId} joined room ${roomId}`);
+//     } else {
+//       socket.emit("error", { message: "Room not found" });
+//     }
+//   });
+
+//   socket.on("signal", ({ roomId, signalData }) => {
+//     console.log(`Signal from ${socket.id} in room ${roomId}`);
+//     socket.to(roomId).emit("signal", { from: socket.id, signalData });
+//   });
+
+//   socket.on("end-room", (roomId) => {
+//     const room = rooms.get(roomId);
+//     if (room) {
+//       io.to(roomId).emit("room-closed");
+//       rooms.delete(roomId);
+//       console.log(`Room ${roomId} closed by teacher`);
+//     }
+//   });
+
+//   socket.on("disconnect", () => {
+//     console.log(`User ${socket.id} disconnected`);
+//     if (socket.roomId) {
+//       const room = rooms.get(socket.roomId);
+//       if (room) {
+//         room.connections.delete(socket.id);
+//         io.to(socket.roomId).emit("peer-disconnected", { peerId: socket.id });
+
+//         if (room.connections.size === 0) {
+//           rooms.delete(socket.roomId);
+//           console.log(`Room ${socket.roomId} removed due to no participants`);
+//         }
+//       }
+//     }
+//   });
+// });
 
 
 
