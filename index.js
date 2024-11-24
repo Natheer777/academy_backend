@@ -37,8 +37,8 @@ app.use(
         "https://academy-backend-pq91.onrender.com",
         "https://japaneseacademy.online",
         "https://164b-95-159-63-120.ngrok-free.app ",
-              "http://192.168.1.107:5173/",
-      "http://192.168.137.1:5173/"
+        "http://192.168.1.107:5173",
+        "http://192.168.137.1:5173",
       ];
       if (allowedOrigins.includes(origin) || !origin) {
         callback(null, true);
@@ -64,8 +64,8 @@ const io = socketIo(server, {
       "https://japaneseacademy.online",
       "http://localhost:5173",
       "https://164b-95-159-63-120.ngrok-free.app",
-      "http://192.168.1.107:5173/",
-      "http://192.168.137.1:5173/"
+      "http://192.168.1.107:5173",
+      "http://192.168.137.1:5173",
     ],
     methods: ["GET", "POST"],
   },
