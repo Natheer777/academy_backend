@@ -31,12 +31,10 @@ app.use(
     origin: function (origin, callback) {
       const allowedOrigins = [
         "https://natheer777.github.io",
-        "http://localhost:3000/socket.io/?EIO=4&transport=polling&t=yjhxo98e",
         "http://localhost:5173",
         "https://academy-backend-pq91.onrender.com",
         "https://japaneseacademy.online",
         "https://4bf1-95-159-10-198.ngrok-free.app ",
-        "http://localhost:5174"
       ];
       if (allowedOrigins.includes(origin) || !origin) {
         callback(null, true);
@@ -56,7 +54,7 @@ app.use(express.static(path.join(__dirname, "public")));
 const server = createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["https://japaneseacademy.online", "http://localhost:5173","https://4bf1-95-159-10-198.ngrok-free.app","http://localhost:5174"],
+    origin: ["https://japaneseacademy.online", "http://localhost:5173","https://4bf1-95-159-10-198.ngrok-free.app"],
     methods: ["GET", "POST"],
   },
   pingTimeout: 60000,
