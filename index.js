@@ -63,7 +63,9 @@ app.use(express.static(path.join(__dirname, "public")));
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-const server = createServer(app);
+// const server = createServer(app);
+
+const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: [
@@ -75,88 +77,140 @@ const io = new Server(server, {
     methods: ["GET", "POST"]
   }
 });
-const rooms = new Map();
 
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
 
-  socket.on('create-room', (teacherId) => {
-    const roomId = `room-${teacherId}`;
-    rooms.set(roomId, { teacher: socket.id, students: new Set() });
-    socket.join(roomId);
-    socket.emit('room-created', roomId);
-    console.log(`Room created: ${roomId}`);
-  });
+app.use(express.static("public"));
 
-  socket.on('join-room', ({ roomId, isStudent }) => {
-    console.log(`Join room request - Room: ${roomId}, IsStudent: ${isStudent}`);
-    const room = rooms.get(roomId);
-    
-    if (!room) {
-      console.log('Room not found');
-      socket.emit('error', 'Room not found');
-      return;
-    }
+let activeRooms = {};
 
-    if (isStudent) {
-      room.students.add(socket.id);
+app.get("/create-room", (req, res) => {
+  const roomId = uuidv4(); // إنشاء معرف فريد للغرفة
+  activeRooms[roomId] = []; // تخزين الغرفة كقيمة جديدة
+  res.json({ roomId }); // إرسال معرف الغرفة إلى العميل
+});
+
+app.get("/check-room/:roomId", (req, res) => {
+  const { roomId } = req.params; // استخراج معرف الغرفة من الطلب
+  if (activeRooms[roomId]) {
+    res.json({ exists: true }); // الغرفة موجودة
+  } else {
+    res.json({ exists: false }); // الغرفة غير موجودة
+  }
+});
+
+
+io.on("connection", (socket) => {
+  socket.on("join-room", ({ roomId, userType }) => {
+    if (activeRooms[roomId]) {
+      activeRooms[roomId].push({ id: socket.id, type: userType });
       socket.join(roomId);
-      
-      // Notify teacher about new student
-      io.to(room.teacher).emit('user-joined', { userId: socket.id, isStudent });
-      console.log(`Student ${socket.id} joined room ${roomId}`);
+      io.to(roomId).emit("update-users", activeRooms[roomId]);
     }
   });
 
-  socket.on('signal', ({ userId, signal, roomId }) => {
-    console.log(`Signal from ${socket.id} to ${userId}`);
-    const room = rooms.get(roomId);
-    
-    if (room) {
-      if (room.teacher === socket.id) {
-        // Signal from teacher to student
-        io.to(userId).emit('signal', { userId: socket.id, signal });
-      } else if (room.students.has(socket.id)) {
-        // Signal from student to teacher
-        io.to(room.teacher).emit('signal', { userId: socket.id, signal });
-      }
+  socket.on("leave-room", (roomId) => {
+    if (activeRooms[roomId]) {
+      activeRooms[roomId] = activeRooms[roomId].filter(
+        (user) => user.id !== socket.id
+      );
+      socket.leave(roomId);
+      io.to(roomId).emit("update-users", activeRooms[roomId]);
     }
   });
 
-  socket.on('leave-room', (roomId) => {
-    console.log(`${socket.id} leaving room ${roomId}`);
-    const room = rooms.get(roomId);
-    if (room) {
-      if (room.teacher === socket.id) {
-        // Teacher leaving - end the session
-        io.to(roomId).emit('session-ended');
-        rooms.delete(roomId);
-        console.log(`Room ${roomId} closed by teacher`);
-      } else {
-        // Student leaving
-        room.students.delete(socket.id);
-        io.to(room.teacher).emit('user-left', socket.id);
-        console.log(`Student ${socket.id} left room ${roomId}`);
-      }
+  socket.on("disconnect", () => {
+    for (const roomId in activeRooms) {
+      activeRooms[roomId] = activeRooms[roomId].filter(
+        (user) => user.id !== socket.id
+      );
+      io.to(roomId).emit("update-users", activeRooms[roomId]);
     }
-    socket.leave(roomId);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-    rooms.forEach((room, roomId) => {
-      if (room.teacher === socket.id) {
-        io.to(roomId).emit('session-ended');
-        rooms.delete(roomId);
-        console.log(`Room ${roomId} closed due to teacher disconnect`);
-      } else if (room.students.has(socket.id)) {
-        room.students.delete(socket.id);
-        io.to(room.teacher).emit('user-left', socket.id);
-        console.log(`Student ${socket.id} removed due to disconnect`);
-      }
-    });
   });
 });
+
+
+// const rooms = new Map();
+
+// io.on('connection', (socket) => {
+//   console.log('User connected:', socket.id);
+
+//   socket.on('create-room', (teacherId) => {
+//     const roomId = `room-${teacherId}`;
+//     rooms.set(roomId, { teacher: socket.id, students: new Set() });
+//     socket.join(roomId);
+//     socket.emit('room-created', roomId);
+//     console.log(`Room created: ${roomId}`);
+//   });
+
+//   socket.on('join-room', ({ roomId, isStudent }) => {
+//     console.log(`Join room request - Room: ${roomId}, IsStudent: ${isStudent}`);
+//     const room = rooms.get(roomId);
+    
+//     if (!room) {
+//       console.log('Room not found');
+//       socket.emit('error', 'Room not found');
+//       return;
+//     }
+
+//     if (isStudent) {
+//       room.students.add(socket.id);
+//       socket.join(roomId);
+      
+//       // Notify teacher about new student
+//       io.to(room.teacher).emit('user-joined', { userId: socket.id, isStudent });
+//       console.log(`Student ${socket.id} joined room ${roomId}`);
+//     }
+//   });
+
+//   socket.on('signal', ({ userId, signal, roomId }) => {
+//     console.log(`Signal from ${socket.id} to ${userId}`);
+//     const room = rooms.get(roomId);
+    
+//     if (room) {
+//       if (room.teacher === socket.id) {
+//         // Signal from teacher to student
+//         io.to(userId).emit('signal', { userId: socket.id, signal });
+//       } else if (room.students.has(socket.id)) {
+//         // Signal from student to teacher
+//         io.to(room.teacher).emit('signal', { userId: socket.id, signal });
+//       }
+//     }
+//   });
+
+//   socket.on('leave-room', (roomId) => {
+//     console.log(`${socket.id} leaving room ${roomId}`);
+//     const room = rooms.get(roomId);
+//     if (room) {
+//       if (room.teacher === socket.id) {
+//         // Teacher leaving - end the session
+//         io.to(roomId).emit('session-ended');
+//         rooms.delete(roomId);
+//         console.log(`Room ${roomId} closed by teacher`);
+//       } else {
+//         // Student leaving
+//         room.students.delete(socket.id);
+//         io.to(room.teacher).emit('user-left', socket.id);
+//         console.log(`Student ${socket.id} left room ${roomId}`);
+//       }
+//     }
+//     socket.leave(roomId);
+//   });
+
+//   socket.on('disconnect', () => {
+//     console.log('User disconnected:', socket.id);
+//     rooms.forEach((room, roomId) => {
+//       if (room.teacher === socket.id) {
+//         io.to(roomId).emit('session-ended');
+//         rooms.delete(roomId);
+//         console.log(`Room ${roomId} closed due to teacher disconnect`);
+//       } else if (room.students.has(socket.id)) {
+//         room.students.delete(socket.id);
+//         io.to(room.teacher).emit('user-left', socket.id);
+//         console.log(`Student ${socket.id} removed due to disconnect`);
+//       }
+//     });
+//   });
+// });
 
 
 
