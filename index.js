@@ -11,6 +11,8 @@ const cookieParser = require("cookie-parser");
 // const http = require("http");
 // const socketIo = require("socket.io");
 const http = require("http");
+const { v4: uuidv4 } = require("uuid");
+
 // const WebSocket = require("ws");
 // const { Server } = require("socket.io");
 // const { Server } = require('socket.io');
@@ -80,53 +82,62 @@ const io = new Server(server, {
 
 
 app.use(express.static("public"));
+const activeRooms = {}; // تخزين الغرف
 
-let activeRooms = {};
-
-app.get("/create-room", (req, res) => {
-  const roomId = uuidv4(); // إنشاء معرف فريد للغرفة
-  activeRooms[roomId] = []; // تخزين الغرفة كقيمة جديدة
-  res.json({ roomId }); // إرسال معرف الغرفة إلى العميل
+app.post("/create-room", (req, res) => {
+  const roomId = `room-${crypto.randomUUID()}`;
+  activeRooms[roomId] = { participants: [] }; // إضافة غرفة جديدة
+  console.log("Room created:", roomId);
+  console.log("Active Rooms after creation:", activeRooms);
+  res.status(201).json({ roomId });
 });
 
 app.get("/check-room/:roomId", (req, res) => {
-  const { roomId } = req.params; // استخراج معرف الغرفة من الطلب
+  const { roomId } = req.params;
+  console.log("Checking room:", roomId);
+  console.log("Active Rooms:", activeRooms);
   if (activeRooms[roomId]) {
-    res.json({ exists: true }); // الغرفة موجودة
+    res.status(200).json({ exists: true, message: "Room found" });
   } else {
-    res.json({ exists: false }); // الغرفة غير موجودة
+    res.status(404).json({ exists: false, message: "Room not found" });
   }
 });
-
-
 io.on("connection", (socket) => {
-  socket.on("join-room", ({ roomId, userType }) => {
+  console.log("User connected: " + socket.id);
+
+  // عندما ينضم المستخدم إلى الغرفة
+  socket.on("join-room", (data) => {
+    const { roomId, userType } = data;
+
+    // تحقق من أن الغرفة موجودة
     if (activeRooms[roomId]) {
-      activeRooms[roomId].push({ id: socket.id, type: userType });
+      // إضافة المستخدم إلى المشاركين في الغرفة
+      activeRooms[roomId].participants.push(socket.id);
+      console.log(`User ${socket.id} joined room: ${roomId}`);
+
+      // إرسال تحديث للمشاركين في الغرفة
+      io.to(roomId).emit("update-users", activeRooms[roomId].participants);
+
+      // الانضمام إلى الغرفة باستخدام Socket.IO
       socket.join(roomId);
-      io.to(roomId).emit("update-users", activeRooms[roomId]);
+    } else {
+      console.log("Room not found!");
     }
   });
 
+  // عندما يترك المستخدم الغرفة
   socket.on("leave-room", (roomId) => {
     if (activeRooms[roomId]) {
-      activeRooms[roomId] = activeRooms[roomId].filter(
-        (user) => user.id !== socket.id
-      );
-      socket.leave(roomId);
-      io.to(roomId).emit("update-users", activeRooms[roomId]);
-    }
-  });
+      // إزالة المستخدم من المشاركين
+      activeRooms[roomId].participants = activeRooms[roomId].participants.filter(id => id !== socket.id);
+      console.log(`User ${socket.id} left room: ${roomId}`);
 
-  socket.on("disconnect", () => {
-    for (const roomId in activeRooms) {
-      activeRooms[roomId] = activeRooms[roomId].filter(
-        (user) => user.id !== socket.id
-      );
-      io.to(roomId).emit("update-users", activeRooms[roomId]);
+      // إرسال تحديث للمشاركين في الغرفة
+      io.to(roomId).emit("update-users", activeRooms[roomId].participants);
     }
   });
 });
+
 
 
 // const rooms = new Map();
