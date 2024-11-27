@@ -49,6 +49,7 @@ app.use(router);
 app.use(express.static(path.join(__dirname, "public")));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -65,20 +66,18 @@ const io = new Server(server, {
 app.use(express.static("public"));
 const activeRooms = {}; // تخزين الغرف
 
-// إنشاء غرفة جديدة
 app.post("/create-room", (req, res) => {
   const roomId = `room-${crypto.randomUUID()}`;
   activeRooms[roomId] = { participants: [] }; // إضافة غرفة جديدة
   console.log("Room created:", roomId);
   console.log("Active Rooms after creation:", activeRooms);
 
-  // إرسال إشعار للطلاب عن إنشاء غرفة
+  // إرسال إشعار لكل الطلاب
   io.emit("room-created", { roomId });
 
   res.status(201).json({ roomId });
 });
 
-// التحقق من وجود الغرفة
 app.get("/check-room/:roomId", (req, res) => {
   const { roomId } = req.params;
   console.log("Checking room:", roomId);
@@ -89,69 +88,72 @@ app.get("/check-room/:roomId", (req, res) => {
     res.status(404).json({ exists: false, message: "Room not found" });
   }
 });
-
-// إعداد Socket.IO
 io.on("connection", (socket) => {
   console.log("User connected: " + socket.id);
 
-  io.on("connection", (socket) => {
-    socket.on("teacher-joined", ({ roomId }) => {
-      socket.join(roomId);
-      socket.to(roomId).emit("teacher-stream");
-    });
-  
-    socket.on("student-joined", ({ roomId }) => {
-      socket.join(roomId);
-      socket.to(roomId).emit("student-stream", socket.id);
-    });
-  
-    socket.on("get-student-stream", ({ studentId }) => {
-      const studentSocket = io.sockets.sockets.get(studentId);
-      if (studentSocket) {
-        studentSocket.emit("student-video");
-      }
-    });
-  
-    socket.on("get-teacher-stream", () => {
-      socket.emit("teacher-video");
-    });
-  });
-  
-
-
+  // عندما ينضم المستخدم إلى الغرفة
   socket.on("join-room", (data) => {
     const { roomId, userType } = data;
 
     // تحقق من أن الغرفة موجودة
     if (activeRooms[roomId]) {
       // إضافة المستخدم إلى المشاركين في الغرفة
-      activeRooms[roomId].participants.push(socket.id);
-      console.log(`User ${socket.id} joined room: ${roomId}`);
+      activeRooms[roomId].participants.push({ id: socket.id, type: userType });
+      console.log(`User ${socket.id} (${userType}) joined room: ${roomId}`);
 
       // إرسال تحديث للمشاركين في الغرفة
       io.to(roomId).emit("update-users", activeRooms[roomId].participants);
 
       // الانضمام إلى الغرفة باستخدام Socket.IO
       socket.join(roomId);
+
+      // عرض المشاركين الحاليين في الغرفة
+      console.log(`Participants in room ${roomId}:`, activeRooms[roomId].participants);
     } else {
       console.log("Room not found!");
     }
   });
 
+  // عندما يترك المستخدم الغرفة
   socket.on("leave-room", (roomId) => {
     if (activeRooms[roomId]) {
       // إزالة المستخدم من المشاركين
       activeRooms[roomId].participants = activeRooms[roomId].participants.filter(
-        (id) => id !== socket.id
+        (participant) => participant.id !== socket.id
       );
       console.log(`User ${socket.id} left room: ${roomId}`);
 
       // إرسال تحديث للمشاركين في الغرفة
       io.to(roomId).emit("update-users", activeRooms[roomId].participants);
+
+      // عرض المشاركين الحاليين في الغرفة بعد المغادرة
+      console.log(`Participants in room ${roomId}:`, activeRooms[roomId].participants);
     }
   });
-});
+  });
 
+
+
+
+let messages = []; // قائمة الرسائل المخزنة في الذاكرة
+
+// استقبال اتصالات العملاء
+io.on('connection', (socket) => {
+  console.log('A user connected:', socket.id);
+
+  // إرسال الرسائل الحالية عند الاتصال
+  socket.emit('chatHistory', messages);
+
+  // استقبال الرسالة الجديدة
+  socket.on('sendMessage', (message) => {
+    messages.push(message); // تخزين الرسالة في الذاكرة
+    io.emit('receiveMessage', message); // إرسال الرسالة للجميع
+  });
+
+  socket.on('disconnect', () => {
+    console.log('A user disconnected:', socket.id);
+  });
+});
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -317,7 +319,7 @@ app.post("/login_user", async (req, res) => {
     if (isMatch) {
       // إضافة role إلى الـ JWT
       const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role }, // إضافة role هنا
+        { id: user.id, email: user.email, role: user.role , firstName: user.firstName}, // إضافة role هنا
         process.env.JWT_SECRET,
         { expiresIn: "1h" }
       );
@@ -325,7 +327,7 @@ app.post("/login_user", async (req, res) => {
       res.status(200).json({
         message: "Login successful!",
         token,
-        user: { id: user.id, email: user.email, role: user.role }, // إرسال بيانات المستخدم
+        user: { id: user.id, email: user.email, role: user.role , firstName: user.firstName}, // إرسال بيانات المستخدم
       });
     } else {
       res.status(401).json({ message: "Invalid password." });
