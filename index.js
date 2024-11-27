@@ -94,6 +94,31 @@ app.get("/check-room/:roomId", (req, res) => {
 io.on("connection", (socket) => {
   console.log("User connected: " + socket.id);
 
+  io.on("connection", (socket) => {
+    socket.on("teacher-joined", ({ roomId }) => {
+      socket.join(roomId);
+      socket.to(roomId).emit("teacher-stream");
+    });
+  
+    socket.on("student-joined", ({ roomId }) => {
+      socket.join(roomId);
+      socket.to(roomId).emit("student-stream", socket.id);
+    });
+  
+    socket.on("get-student-stream", ({ studentId }) => {
+      const studentSocket = io.sockets.sockets.get(studentId);
+      if (studentSocket) {
+        studentSocket.emit("student-video");
+      }
+    });
+  
+    socket.on("get-teacher-stream", () => {
+      socket.emit("teacher-video");
+    });
+  });
+  
+
+
   socket.on("join-room", (data) => {
     const { roomId, userType } = data;
 
