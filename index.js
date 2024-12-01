@@ -30,7 +30,7 @@ app.use(
     origin: function (origin, callback) {
       const allowedOrigins = [
         "https://natheer777.github.io",
-        "https://localhost:5173",
+        "http://localhost:5173",
         "https://academy-backend-pq91.onrender.com",
         "https://japaneseacademy.online",
         "https://192.168.1.107:5173",
@@ -55,7 +55,7 @@ const io = new Server(server, {
   cors: {
     origin: [
       "https://japaneseacademy.online",
-      "https://academy-backend-pq91.onrender.com",
+      "http://academy-backend-pq91.onrender.com",
       "https://localhost:5173",
       "https://192.168.1.107:5173",
     ],
