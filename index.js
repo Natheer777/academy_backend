@@ -257,7 +257,6 @@ app.use(express.static(path.join(__dirname, "public")));
 
 
 const server = http.createServer(app);
-
 const io = new Server(server, {
   cors: {
     origin: [
@@ -274,16 +273,16 @@ const io = new Server(server, {
 let clients = []; // لتخزين جميع العملاء المتصلين
 
 io.on("connection", (socket) => {
-  console.log("A new client connected:", socket.id);
+  console.log("Connected");
   clients.push(socket.id);  // إضافة العميل المتصل إلى قائمة العملاء
 
   socket.on("message", (message) => {
     // إرسال الرسالة إلى جميع العملاء باستثناء المرسل
-    socket.broadcast.emit("message", { ...message, from: socket.id });
+    socket.broadcast.emit("message", message);
   });
 
   socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id);
+    console.log("Disconnected");
     clients = clients.filter(id => id !== socket.id); // إزالة العميل المتصل من القائمة عند الانفصال
   });
 });
