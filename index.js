@@ -214,49 +214,6 @@ app.use(express.static(path.join(__dirname, "public")));
 // });
 
 
-// const io = new Server(server, {
-//   cors: {
-//     origin: [
-//       "https://japaneseacademy.online",
-//       "https://academy-backend-pq91.onrender.com",
-//       "http://localhost:5173",
-//       "https://192.168.1.107:5173",
-//       "http://127.0.0.1:4040",
-//     ],
-//     methods: ["GET", "POST"],
-//   },
-// });
-
-// let clients = []; // لتخزين جميع العملاء المتصلين
-
-// io.on("connection", (socket) => {
-//   console.log("Connected");
-//   clients.push(socket.id);  // إضافة العميل المتصل إلى قائمة العملاء
-
-//   socket.on("message", (message) => {
-//     // إرسال الرسالة إلى جميع العملاء باستثناء المرسل
-//     socket.broadcast.emit("message", message);
-//   });
-
-//   socket.on("disconnect", () => {
-//     console.log("Disconnected");
-//     clients = clients.filter(id => id !== socket.id); // إزالة العميل المتصل من القائمة عند الانفصال
-//   });
-// });
-
-
-// function error(err, req, res, next) {
-//   // log it
-//   if (!test) console.error(err.stack);
-
-//   // respond with 500 "Internal Server Error".
-//   res.status(500);
-//   res.send("Internal Server Error");
-// }
-// app.use(error);
-
-
-const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: [
@@ -287,6 +244,16 @@ io.on("connection", (socket) => {
   });
 });
 
+
+function error(err, req, res, next) {
+  // log it
+  if (!test) console.error(err.stack);
+
+  // respond with 500 "Internal Server Error".
+  res.status(500);
+  res.send("Internal Server Error");
+}
+app.use(error);
 
 ///////////////////////////////////////////////////////
 
