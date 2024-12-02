@@ -138,7 +138,7 @@ app.use(express.static(path.join(__dirname, "public")));
 //   });
 
 
-//////////////////////////////
+
 
 
 // const server = http.createServer(app);
@@ -212,45 +212,8 @@ app.use(express.static(path.join(__dirname, "public")));
 //     console.log("User disconnected:", socket.id);
 //   });
 // });
-////////////////////////////////////////////////////////////////
-
-// const server = http.createServer(app);
-
-// const io = new Server(server, {
-//   cors: {
-//     origin: [
-//       "https://japaneseacademy.online",
-//       "https://academy-backend-pq91.onrender.com",
-//       "http://localhost:5173",
-//       "https://192.168.1.107:5173",
-//       "http://127.0.0.1:4040",
-//     ],
-//     methods: ["GET", "POST"],
-//   },
-// });
-// io.on("connection", (socket) => {
-//   console.log("Connected");
-
-//   socket.on("message", (message) => {
-//     socket.broadcast.emit("message", message);
-//   });
-
-//   socket.on("disconnect", () => {
-//     console.log("Disconnected");
-//   });
-// });
-
-// function error(err, req, res, next) {
-//   // log it
-//   if (!test) console.error(err.stack);
-
-//   // respond with 500 "Internal Server Error".
-//   res.status(500);
-//   res.send("Internal Server Error");
-// }
 
 
-///////////////////////////////////////////////////
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -265,115 +228,25 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
-
-
-let peerConnections = {}; // لتخزين RTCPeerConnections لكل مستخدم
-let sockets = {}; // لتخزين Socket لكل مستخدم
-
-// عند اتصال مستخدم جديد
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-  sockets[socket.id] = socket;  // تخزين socket للمستخدم
+  console.log("Connected");
 
   socket.on("message", (message) => {
-    switch (message.type) {
-      case "offer":
-        handleOffer(socket.id, message);
-        break;
-      case "answer":
-        handleAnswer(socket.id, message);
-        break;
-      case "candidate":
-        handleCandidate(socket.id, message);
-        break;
-      case "ready":
-        handleReady(socket.id);
-        break;
-      case "bye":
-        handleBye(socket.id);
-        break;
-      default:
-        console.log("Unhandled message type:", message);
-    }
+    socket.broadcast.emit("message", message);
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-    handleBye(socket.id);
+    console.log("Disconnected");
   });
 });
 
-// التعامل مع عرض (Offer)
-async function handleOffer(id, offer) {
-  let pc = new RTCPeerConnection();
-  peerConnections[id] = pc;
+function error(err, req, res, next) {
+  // log it
+  if (!test) console.error(err.stack);
 
-  // عند ظهور مرشح ICE جديد
-  pc.onicecandidate = (e) => {
-    const message = {
-      type: "candidate",
-      candidate: e.candidate ? e.candidate.candidate : null,
-      sdpMid: e.candidate ? e.candidate.sdpMid : null,
-      sdpMLineIndex: e.candidate ? e.candidate.sdpMLineIndex : null,
-    };
-    broadcast(id, message);  // إرسال المرشح لجميع المشاركين
-  };
-
-  pc.ontrack = (e) => {
-    broadcast(id, { type: "newStream", stream: e.streams[0] });
-  };
-
-  // إضافة التراكات من البث المحلي للمكالمة
-  localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
-
-  await pc.setRemoteDescription(offer);
-
-  const answer = await pc.createAnswer();
-  await pc.setLocalDescription(answer);
-
-  // إرسال الإجابة (Answer) للعميل الذي أرسل العرض (Offer)
-  sockets[id].emit("message", { type: "answer", sdp: answer.sdp });
-}
-
-// التعامل مع الإجابة (Answer)
-async function handleAnswer(id, answer) {
-  let pc = peerConnections[id];
-  if (pc) {
-    await pc.setRemoteDescription(answer);
-  }
-}
-
-// التعامل مع مرشح ICE (Candidate)
-async function handleCandidate(id, candidate) {
-  let pc = peerConnections[id];
-  if (pc && candidate) {
-    await pc.addIceCandidate(new RTCIceCandidate(candidate));
-  }
-}
-
-// عندما يصبح المستخدم جاهزًا للمكالمة
-function handleReady(id) {
-  if (Object.keys(peerConnections).length > 1) {
-    makeCall(id);  // إذا كان هناك أكثر من شخص، نبدأ المكالمة
-  }
-}
-
-// عندما يغادر المستخدم
-function handleBye(id) {
-  if (peerConnections[id]) {
-    peerConnections[id].close();
-    delete peerConnections[id];
-  }
-  broadcast(id, { type: "bye", id });
-}
-
-// بث الرسائل لجميع المشاركين في المكالمة
-function broadcast(senderId, message) {
-  Object.keys(peerConnections).forEach((id) => {
-    if (id !== senderId) {
-      sockets[id].emit("message", message);
-    }
-  });
+  // respond with 500 "Internal Server Error".
+  res.status(500);
+  res.send("Internal Server Error");
 }
 ///////////////////////////////////////////////////////
 
