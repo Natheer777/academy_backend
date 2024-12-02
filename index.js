@@ -505,6 +505,24 @@ const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 const PORT = process.env.PORT || 3001;
 const path = require('path');
+app.use(
+    cors({
+      origin: function (origin, callback) {
+        const allowedOrigins = [
+
+          "https://academy-backend-pq91.onrender.com",
+          "https://japaneseacademy.online",
+
+        ];
+        if (allowedOrigins.includes(origin) || !origin) {
+          callback(null, true);
+        } else {
+          callback(new Error("Not allowed by CORS"));
+        }
+      },
+      methods: ["GET", "POST", "DELETE", "PUT"], // إضافة الطرق المسموحة
+    })
+  );
 
 let socketList = {};
 
