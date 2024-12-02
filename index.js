@@ -503,32 +503,32 @@ const express = require('express');
 const app = express();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 const path = require('path');
-app.use(
-    cors({
-      origin: function (origin, callback) {
-        const allowedOrigins = [
-
-          "https://academy-backend-pq91.onrender.com",
-          "https://japaneseacademy.online",
-
-        ];
-        if (allowedOrigins.includes(origin) || !origin) {
-          callback(null, true);
-        } else {
-          callback(new Error("Not allowed by CORS"));
-        }
-      },
-      methods: ["GET", "POST", "DELETE", "PUT"], // إضافة الطرق المسموحة
-    })
-  );
 
 let socketList = {};
 
 app.use(express.static(path.join(__dirname, 'public')));
 
 if (process.env.NODE_ENV === 'production') {
+  app.use(
+      cors({
+        origin: function (origin, callback) {
+          const allowedOrigins = [
+  
+            "https://academy-backend-pq91.onrender.com",
+            "https://japaneseacademy.online",
+  
+          ];
+          if (allowedOrigins.includes(origin) || !origin) {
+            callback(null, true);
+          } else {
+            callback(new Error("Not allowed by CORS"));
+          }
+        },
+        methods: ["GET", "POST", "DELETE", "PUT"], // إضافة الطرق المسموحة
+      })
+    );
   app.use(express.static(path.join(__dirname, '../client/build')));
 
   app.get('/*', function (req, res) {
