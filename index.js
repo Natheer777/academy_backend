@@ -571,7 +571,7 @@ app.use(cors());
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "https://japaneseacademy.online/",
+    origin: "https://japaneseacademy.online",
     methods: ["GET", "POST"]
   }
 });
