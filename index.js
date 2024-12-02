@@ -214,6 +214,42 @@ app.use(express.static(path.join(__dirname, "public")));
 // });
 
 
+// const server = http.createServer(app);
+
+// const io = new Server(server, {
+//   cors: {
+//     origin: [
+//       "https://japaneseacademy.online",
+//       "https://academy-backend-pq91.onrender.com",
+//       "http://localhost:5173",
+//       "https://192.168.1.107:5173",
+//       "http://127.0.0.1:4040",
+//     ],
+//     methods: ["GET", "POST"],
+//   },
+// });
+// io.on("connection", (socket) => {
+//   console.log("Connected");
+
+//   socket.on("message", (message) => {
+//     socket.broadcast.emit("message", message);
+//   });
+
+//   socket.on("disconnect", () => {
+//     console.log("Disconnected");
+//   });
+// });
+
+// function error(err, req, res, next) {
+//   // log it
+//   if (!test) console.error(err.stack);
+
+//   // respond with 500 "Internal Server Error".
+//   res.status(500);
+//   res.send("Internal Server Error");
+// }
+
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -228,26 +264,51 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
   },
 });
-io.on("connection", (socket) => {
-  console.log("Connected");
 
+// قائمة لتتبع جميع المستخدمين المتصلين
+const connectedUsers = {};
+
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  // عند الاتصال، يتم إضافة المستخدم إلى قائمة المستخدمين
+  connectedUsers[socket.id] = socket.id;
+
+  // إبلاغ جميع المستخدمين الآخرين بوجود مستخدم جديد
+  socket.broadcast.emit("message", { type: "ready", from: socket.id });
+
+  // استقبال الرسائل من المستخدمين
   socket.on("message", (message) => {
-    socket.broadcast.emit("message", message);
+    const { to } = message;
+
+    if (to) {
+      // إذا كانت الرسالة موجهة إلى مستخدم معين
+      if (connectedUsers[to]) {
+        io.to(to).emit("message", { ...message, from: socket.id });
+      }
+    } else {
+      // إذا لم يتم تحديد مستقبل، يتم بث الرسالة للجميع باستثناء المرسل
+      socket.broadcast.emit("message", { ...message, from: socket.id });
+    }
   });
 
+  // عند قطع الاتصال
   socket.on("disconnect", () => {
-    console.log("Disconnected");
+    console.log("User disconnected:", socket.id);
+    delete connectedUsers[socket.id];
+
+    // إبلاغ جميع المستخدمين الآخرين بأن المستخدم غادر
+    socket.broadcast.emit("message", { type: "bye", from: socket.id });
   });
 });
 
+// معالج الأخطاء
 function error(err, req, res, next) {
-  // log it
-  if (!test) console.error(err.stack);
-
-  // respond with 500 "Internal Server Error".
-  res.status(500);
-  res.send("Internal Server Error");
+  console.error(err.stack);
+  res.status(500).send("Internal Server Error");
 }
+
+app.use(error);
 ///////////////////////////////////////////////////////
 
 let messages = []; // قائمة الرسائل المخزنة في الذاكرة
