@@ -110,34 +110,71 @@ const io = new Server(server, {
 // }
 
 // app.use(error);
-const connectedUsers = {};
+
+
+
+const roomState = {
+  isStarted: false,
+  teacher: null,
+  students: {}
+};
+
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
-
-  // إضافة المستخدم عند الاتصال
-  connectedUsers[socket.id] = { id: socket.id };
 
   socket.on("message", (message) => {
     const { type, user, to } = message;
 
     switch (type) {
+      case "startRoom":
+        roomState.isStarted = true;
+        roomState.teacher = socket.id;
+        io.emit("message", { type: "roomStarted" });
+        break;
+
+      case "endRoom":
+        roomState.isStarted = false;
+        roomState.teacher = null;
+        roomState.students = {};
+        io.emit("message", { type: "roomEnded" });
+        break;
+
       case "join":
-        // إذا لم يكن الكائن موجودًا، فلا تقم بعمليات التخزين
-        if (connectedUsers[socket.id]) {
-          connectedUsers[socket.id].user = user; // تخزين اسم المستخدم
-          socket.broadcast.emit("message", { type: "join", user });
-          socket.emit("message", { type: "ready" }); // إعلام المستخدم بالجاهزية
+        if (user === "Teacher") {
+          roomState.teacher = socket.id;
+        } else {
+          roomState.students[socket.id] = { id: socket.id, name: user };
+          socket.broadcast.emit("message", { 
+            type: "join", 
+            from: socket.id, 
+            user,
+            students: Object.values(roomState.students)
+          });
         }
+        socket.emit("message", { 
+          type: "roomState", 
+          isStarted: roomState.isStarted,
+          students: Object.values(roomState.students)
+        });
         break;
 
       case "leave":
-        const leavingUser = connectedUsers[socket.id]?.user || socket.id;
-        delete connectedUsers[socket.id];
-        socket.broadcast.emit("message", { type: "leave", user: leavingUser });
+        if (socket.id === roomState.teacher) {
+          roomState.isStarted = false;
+          roomState.teacher = null;
+          io.emit("message", { type: "roomEnded" });
+        } else {
+          delete roomState.students[socket.id];
+          io.emit("message", { 
+            type: "studentLeft", 
+            studentId: socket.id,
+            students: Object.values(roomState.students)
+          });
+        }
         break;
 
       default:
-        if (to && connectedUsers[to]) {
+        if (to) {
           io.to(to).emit("message", { ...message, from: socket.id });
         } else {
           socket.broadcast.emit("message", { ...message, from: socket.id });
@@ -148,10 +185,18 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-    const user = connectedUsers[socket.id]?.user || socket.id;
-    delete connectedUsers[socket.id];
-    
-    socket.broadcast.emit("message", { type: "leave", user });
+    if (socket.id === roomState.teacher) {
+      roomState.isStarted = false;
+      roomState.teacher = null;
+      io.emit("message", { type: "roomEnded" });
+    } else if (roomState.students[socket.id]) {
+      delete roomState.students[socket.id];
+      io.emit("message", { 
+        type: "studentLeft", 
+        studentId: socket.id,
+        students: Object.values(roomState.students)
+      });
+    }
   });
 });
 
