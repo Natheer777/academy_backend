@@ -361,15 +361,13 @@ io.on("connection", (socket) => {
 
   connectedUsers[socket.id] = socket.id;
 
-  socket.broadcast.emit("message", { type: "ready" });
-
   socket.on("message", (message) => {
-    const { to } = message;
+    const { type, user } = message;
 
-    if (to) {
-      if (connectedUsers[to]) {
-        io.to(to).emit("message", { ...message, from: socket.id });
-      }
+    if (type === "join") {
+      socket.broadcast.emit("message", { type: "join", user });
+    } else if (type === "leave") {
+      socket.broadcast.emit("message", { type: "leave", user });
     } else {
       socket.broadcast.emit("message", { ...message, from: socket.id });
     }
@@ -378,9 +376,10 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
     delete connectedUsers[socket.id];
-    socket.broadcast.emit("message", { type: "bye", from: socket.id });
   });
 });
+
+
 ///////////////////////////////////////////////////////
 
 let messages = []; // قائمة الرسائل المخزنة في الذاكرة
