@@ -310,49 +310,77 @@ const io = new Server(server, {
 // });
 
 // قائمة لتتبع جميع المستخدمين المتصلين
-const connectedUsers = {};
+// const connectedUsers = {};
+
+// io.on("connection", (socket) => {
+//   console.log("User connected:", socket.id);
+
+//   // عند الاتصال، يتم إضافة المستخدم إلى قائمة المستخدمين
+//   connectedUsers[socket.id] = socket.id;
+
+//   // إبلاغ جميع المستخدمين الآخرين بوجود مستخدم جديد
+//   socket.broadcast.emit("message", { type: "ready", from: socket.id });
+
+//   // استقبال الرسائل من المستخدمين
+//   socket.on("message", (message) => {
+//     const { to } = message;
+
+//     if (to) {
+//       // إذا كانت الرسالة موجهة إلى مستخدم معين
+//       if (connectedUsers[to]) {
+//         io.to(to).emit("message", { ...message, from: socket.id });
+//       }
+//     } else {
+//       // إذا لم يتم تحديد مستقبل، يتم بث الرسالة للجميع باستثناء المرسل
+//       socket.broadcast.emit("message", { ...message, from: socket.id });
+//     }
+//   });
+
+//   // عند قطع الاتصال
+//   socket.on("disconnect", () => {
+//     console.log("User disconnected:", socket.id);
+//     delete connectedUsers[socket.id];
+
+//     // إبلاغ جميع المستخدمين الآخرين بأن المستخدم غادر
+//     socket.broadcast.emit("message", { type: "bye", from: socket.id });
+//   });
+// });
+
+// // معالج الأخطاء
+// function error(err, req, res, next) {
+//   console.error(err.stack);
+//   res.status(500).send("Internal Server Error");
+// }
+
+// app.use(error);
+
+let connectedUsers = {};
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // عند الاتصال، يتم إضافة المستخدم إلى قائمة المستخدمين
   connectedUsers[socket.id] = socket.id;
 
-  // إبلاغ جميع المستخدمين الآخرين بوجود مستخدم جديد
-  socket.broadcast.emit("message", { type: "ready", from: socket.id });
+  socket.broadcast.emit("message", { type: "ready" });
 
-  // استقبال الرسائل من المستخدمين
   socket.on("message", (message) => {
     const { to } = message;
 
     if (to) {
-      // إذا كانت الرسالة موجهة إلى مستخدم معين
       if (connectedUsers[to]) {
         io.to(to).emit("message", { ...message, from: socket.id });
       }
     } else {
-      // إذا لم يتم تحديد مستقبل، يتم بث الرسالة للجميع باستثناء المرسل
       socket.broadcast.emit("message", { ...message, from: socket.id });
     }
   });
 
-  // عند قطع الاتصال
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
     delete connectedUsers[socket.id];
-
-    // إبلاغ جميع المستخدمين الآخرين بأن المستخدم غادر
     socket.broadcast.emit("message", { type: "bye", from: socket.id });
   });
 });
-
-// معالج الأخطاء
-function error(err, req, res, next) {
-  console.error(err.stack);
-  res.status(500).send("Internal Server Error");
-}
-
-app.use(error);
 ///////////////////////////////////////////////////////
 
 let messages = []; // قائمة الرسائل المخزنة في الذاكرة
