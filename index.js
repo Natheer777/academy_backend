@@ -265,80 +265,94 @@ const io = new Server(server, {
   },
 });
 
-let roomStatus = {}; // Track room status by room ID
+// let roomClients = {};
 
-io.on("connection", (socket) => {
-    console.log("User connected: ", socket.id);
+// io.on('connection', (socket) => {
+//     console.log('User connected: ' + socket.id);
 
-    // Teacher creates a room
-    socket.on("create-room", (roomId) => {
-        roomStatus[roomId] = true; // Mark the room as active
-        socket.join(roomId);
-        console.log(`Room ${roomId} created`);
-        io.to(roomId).emit("room-active", true);
-    });
+//     socket.on('joinRoom', (roomId, isTeacher) => {
+//         socket.join(roomId);
+        
+//         if (isTeacher) {
+//             roomClients[roomId] = { teacher: socket.id };
+//             io.to(socket.id).emit('roomJoined', true);
+//         } else {
+//             if (roomClients[roomId]) {
+//                 io.to(socket.id).emit('roomJoined', false);
+//             } else {
+//                 socket.emit('roomError', 'The room does not exist');
+//             }
+//         }
+//     });
 
-    // Student joins a room
-    socket.on("join-room", (roomId) => {
-        if (roomStatus[roomId]) {
-            socket.join(roomId);
-            console.log(`User joined room ${roomId}`);
-            io.to(roomId).emit("user-joined", socket.id);
-        } else {
-            socket.emit("room-not-active");
-        }
-    });
+//     socket.on('offer', (data) => {
+//         socket.to(data.roomId).emit('offer', { sdp: data.sdp, sender: socket.id });
+//     });
 
-    // Handle disconnection
-    socket.on("disconnect", () => {
-        console.log("User disconnected: ", socket.id);
-    });
-});
+//     socket.on('answer', (data) => {
+//         socket.to(data.roomId).emit('answer', { sdp: data.sdp, sender: socket.id });
+//     });
 
-// قائمة لتتبع جميع المستخدمين المتصلين
-// const connectedUsers = {};
+//     socket.on('candidate', (data) => {
+//         socket.to(data.roomId).emit('candidate', { candidate: data.candidate, sender: socket.id });
+//     });
 
-// io.on("connection", (socket) => {
-//   console.log("User connected:", socket.id);
+//     socket.on('leaveRoom', (roomId) => {
+//         socket.leave(roomId);
+//         if (roomClients[roomId]?.teacher === socket.id) {
+//             delete roomClients[roomId];
+//         }
+//     });
 
-//   // عند الاتصال، يتم إضافة المستخدم إلى قائمة المستخدمين
-//   connectedUsers[socket.id] = socket.id;
-
-//   // إبلاغ جميع المستخدمين الآخرين بوجود مستخدم جديد
-//   socket.broadcast.emit("message", { type: "ready", from: socket.id });
-
-//   // استقبال الرسائل من المستخدمين
-//   socket.on("message", (message) => {
-//     const { to } = message;
-
-//     if (to) {
-//       // إذا كانت الرسالة موجهة إلى مستخدم معين
-//       if (connectedUsers[to]) {
-//         io.to(to).emit("message", { ...message, from: socket.id });
-//       }
-//     } else {
-//       // إذا لم يتم تحديد مستقبل، يتم بث الرسالة للجميع باستثناء المرسل
-//       socket.broadcast.emit("message", { ...message, from: socket.id });
-//     }
-//   });
-
-//   // عند قطع الاتصال
-//   socket.on("disconnect", () => {
-//     console.log("User disconnected:", socket.id);
-//     delete connectedUsers[socket.id];
-
-//     // إبلاغ جميع المستخدمين الآخرين بأن المستخدم غادر
-//     socket.broadcast.emit("message", { type: "bye", from: socket.id });
-//   });
+//     socket.on('disconnect', () => {
+//         console.log('User disconnected: ' + socket.id);
+//     });
 // });
 
-// // معالج الأخطاء
-// function error(err, req, res, next) {
-//   console.error(err.stack);
-//   res.status(500).send("Internal Server Error");
-// }
+// قائمة لتتبع جميع المستخدمين المتصلين
+const connectedUsers = {};
 
-// app.use(error);
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  // عند الاتصال، يتم إضافة المستخدم إلى قائمة المستخدمين
+  connectedUsers[socket.id] = socket.id;
+
+  // إبلاغ جميع المستخدمين الآخرين بوجود مستخدم جديد
+  socket.broadcast.emit("message", { type: "ready", from: socket.id });
+
+  // استقبال الرسائل من المستخدمين
+  socket.on("message", (message) => {
+    const { to } = message;
+
+    if (to) {
+      // إذا كانت الرسالة موجهة إلى مستخدم معين
+      if (connectedUsers[to]) {
+        io.to(to).emit("message", { ...message, from: socket.id });
+      }
+    } else {
+      // إذا لم يتم تحديد مستقبل، يتم بث الرسالة للجميع باستثناء المرسل
+      socket.broadcast.emit("message", { ...message, from: socket.id });
+    }
+  });
+
+  // عند قطع الاتصال
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+    delete connectedUsers[socket.id];
+
+    // إبلاغ جميع المستخدمين الآخرين بأن المستخدم غادر
+    socket.broadcast.emit("message", { type: "bye", from: socket.id });
+  });
+});
+
+// معالج الأخطاء
+function error(err, req, res, next) {
+  console.error(err.stack);
+  res.status(500).send("Internal Server Error");
+}
+
+app.use(error);
 ///////////////////////////////////////////////////////
 
 let messages = []; // قائمة الرسائل المخزنة في الذاكرة
