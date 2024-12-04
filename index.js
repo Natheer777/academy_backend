@@ -33,8 +33,7 @@ app.use(
         "http://localhost:5173",
         "https://academy-backend-pq91.onrender.com",
         "https://japaneseacademy.online",
-        "https://192.168.1.107:5173",
-        "http://127.0.0.1:4040"
+
       ];
       if (allowedOrigins.includes(origin) || !origin) {
         callback(null, true);
@@ -258,8 +257,7 @@ const io = new Server(server, {
       "https://japaneseacademy.online",
       "https://academy-backend-pq91.onrender.com",
       "http://localhost:5173",
-      "https://192.168.1.107:5173",
-      "http://127.0.0.1:4040",
+
     ],
     methods: ["GET", "POST"],
   },
@@ -353,32 +351,50 @@ const io = new Server(server, {
 // }
 
 // app.use(error);
-
-let connectedUsers = {};
-
+const connectedUsers = {};
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  connectedUsers[socket.id] = socket.id;
+  // إضافة المستخدم عند الاتصال
+  connectedUsers[socket.id] = { id: socket.id };
 
   socket.on("message", (message) => {
-    const { type, user } = message;
+    const { type, user, to } = message;
 
-    if (type === "join") {
-      socket.broadcast.emit("message", { type: "join", user });
-    } else if (type === "leave") {
-      socket.broadcast.emit("message", { type: "leave", user });
-    } else {
-      socket.broadcast.emit("message", { ...message, from: socket.id });
+    switch (type) {
+      case "join":
+        // إذا لم يكن الكائن موجودًا، فلا تقم بعمليات التخزين
+        if (connectedUsers[socket.id]) {
+          connectedUsers[socket.id].user = user; // تخزين اسم المستخدم
+          socket.broadcast.emit("message", { type: "join", user });
+          socket.emit("message", { type: "ready" }); // إعلام المستخدم بالجاهزية
+        }
+        break;
+
+      case "leave":
+        const leavingUser = connectedUsers[socket.id]?.user || socket.id;
+        delete connectedUsers[socket.id];
+        socket.broadcast.emit("message", { type: "leave", user: leavingUser });
+        break;
+
+      default:
+        if (to && connectedUsers[to]) {
+          io.to(to).emit("message", { ...message, from: socket.id });
+        } else {
+          socket.broadcast.emit("message", { ...message, from: socket.id });
+        }
+        break;
     }
   });
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
+    const user = connectedUsers[socket.id]?.user || socket.id;
     delete connectedUsers[socket.id];
+    
+    socket.broadcast.emit("message", { type: "leave", user });
   });
 });
-
 
 ///////////////////////////////////////////////////////
 
