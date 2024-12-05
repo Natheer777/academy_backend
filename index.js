@@ -103,15 +103,21 @@ class Room {
   }
 
   removeParticipant(id) {
+    const participant = this.participants.get(id);
     this.participants.delete(id);
     if (id === this.teacherId) {
       this.isStarted = false;
       this.teacherId = null;
     }
+    return participant;
   }
 
   getParticipants() {
     return Array.from(this.participants.values());
+  }
+
+  getParticipant(id) {
+    return this.participants.get(id);
   }
 }
 
@@ -134,7 +140,7 @@ io.on("connection", (socket) => {
           
           // Add teacher to participants
           room.addParticipant(socket.id, {
-            name: "Teacher",
+            name: "المعلم",
             role: "teacher"
           });
           
@@ -197,8 +203,11 @@ io.on("connection", (socket) => {
         case "answer":
         case "candidate":
           const { to } = message;
-          if (to) {
+          if (to && rooms.has(roomId)) {
+            const room = rooms.get(roomId);
+            const fromParticipant = room.getParticipant(socket.id);
             message.from = socket.id;
+            message.fromName = fromParticipant ? fromParticipant.name : '';
             socket.to(to).emit("message", message);
           }
           break;
@@ -206,12 +215,13 @@ io.on("connection", (socket) => {
         case "leave":
           if (roomId && rooms.has(roomId)) {
             const leaveRoom = rooms.get(roomId);
-            leaveRoom.removeParticipant(socket.id);
+            const participant = leaveRoom.removeParticipant(socket.id);
             socket.leave(roomId);
             
             io.to(roomId).emit("message", {
               type: "participantLeft",
               participantId: socket.id,
+              participantName: participant ? participant.name : '',
               participants: leaveRoom.getParticipants(),
               isStarted: leaveRoom.isStarted,
               teacherId: leaveRoom.teacherId
@@ -249,10 +259,11 @@ io.on("connection", (socket) => {
     console.log("User disconnected:", socket.id);
     rooms.forEach((room, roomId) => {
       if (room.participants.has(socket.id)) {
-        room.removeParticipant(socket.id);
+        const participant = room.removeParticipant(socket.id);
         io.to(roomId).emit("message", {
           type: "participantLeft",
           participantId: socket.id,
+          participantName: participant ? participant.name : '',
           participants: room.getParticipants(),
           isStarted: room.isStarted,
           teacherId: room.teacherId
