@@ -152,7 +152,7 @@ io.on("connection", (socket) => {
           if (!roomId || !userData || !userData.name) {
             socket.emit("message", {
               type: "error",
-              message: "Invalid join request"
+              message: "Invalid join request - missing required data"
             });
             break;
           }
@@ -165,6 +165,7 @@ io.on("connection", (socket) => {
           if (joinRoom.addParticipant(socket.id, userData)) {
             socket.join(roomId);
             
+            // Notify all participants about the new join
             io.to(roomId).emit("message", {
               type: "participantJoined",
               participant: {
@@ -175,6 +176,19 @@ io.on("connection", (socket) => {
               participants: joinRoom.getParticipants(),
               isStarted: joinRoom.isStarted,
               teacherId: joinRoom.teacherId
+            });
+
+            // Send current room state to the joining participant
+            socket.emit("message", {
+              type: "roomState",
+              isStarted: joinRoom.isStarted,
+              teacherId: joinRoom.teacherId,
+              participants: joinRoom.getParticipants()
+            });
+          } else {
+            socket.emit("message", {
+              type: "error",
+              message: "Could not join room - please try again"
             });
           }
           break;
