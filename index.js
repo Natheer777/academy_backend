@@ -173,6 +173,20 @@ io.on("connection", (socket) => {
           delete roomState.students[socket.id];
           io.emit("message", { 
             type: "studentLeft", 
+            from: socket.id,
+            studentId: socket.id,
+            students: Object.values(roomState.students)
+          });
+        }
+        break;
+
+      case "studentLeft": 
+        if (socket.id) {
+          console.log("Student leaving room:", socket.id);
+          delete roomState.students[socket.id];
+          io.emit("message", { 
+            type: "studentLeft", 
+            from: socket.id,
             studentId: socket.id,
             students: Object.values(roomState.students)
           });
@@ -197,12 +211,13 @@ io.on("connection", (socket) => {
       roomState.teacher = null;
       roomState.students = {};
       roomState.connections = {};
-      io.emit("message", { type: "roomEnded" });
+      io.emit("message", { type: "roomEnded", from: socket.id });
     } else if (roomState.students[socket.id]) {
       console.log("Student disconnected:", socket.id);
       delete roomState.students[socket.id];
       io.emit("message", { 
         type: "studentLeft", 
+        from: socket.id,
         studentId: socket.id,
         students: Object.values(roomState.students)
       });
