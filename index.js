@@ -63,17 +63,13 @@ const io = new Server(server, {
     ],
     methods: ["GET", "POST"],
   },
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  transports: ['websocket', 'polling']
 });
 
 const roomState = {
   isStarted: false,
   teacher: null,
   students: {},
-  connections: {}, // Track active WebRTC connections
-  connectionAttempts: {} // Track connection attempts
+  connections: {} // Track active WebRTC connections
 };
 
 io.on("connection", (socket) => {
@@ -83,157 +79,113 @@ io.on("connection", (socket) => {
     const { type, user, to, sdp, candidate } = message;
     console.log("Received message:", type, "from:", socket.id, "to:", to || "broadcast");
 
-    try {
-      switch (type) {
-        case "startRoom":
-          console.log("Teacher starting room:", socket.id);
-          roomState.isStarted = true;
-          roomState.teacher = socket.id;
-          roomState.connections = {}; // Reset connections
-          roomState.connectionAttempts = {}; // Reset attempts
-          io.emit("message", { 
-            type: "roomStarted",
-            teacherId: socket.id 
-          });
-          break;
+    switch (type) {
+      case "startRoom":
+        console.log("Teacher starting room:", socket.id);
+        roomState.isStarted = true;
+        roomState.teacher = socket.id;
+        roomState.connections = {}; // Reset connections
+        io.emit("message", { 
+          type: "roomStarted",
+          teacherId: socket.id 
+        });
+        break;
 
-        case "endRoom":
-          console.log("Teacher ending room:", socket.id);
+      case "join":
+        if (user === "Teacher") {
+          console.log("Teacher joined:", socket.id);
+          roomState.teacher = socket.id;
+          socket.emit("message", { 
+            type: "roomState", 
+            isStarted: roomState.isStarted,
+            students: Object.values(roomState.students)
+          });
+        } else {
+          console.log("Student joined:", user, socket.id);
+          roomState.students[socket.id] = { id: socket.id, name: user };
+          
+          // Notify all participants about the new student
+          io.emit("message", { 
+            type: "studentJoined", 
+            student: { id: socket.id, name: user },
+            students: Object.values(roomState.students)
+          });
+
+          // Send current room state to the new student
+          socket.emit("message", { 
+            type: "roomState", 
+            isStarted: roomState.isStarted,
+            teacherId: roomState.teacher,
+            students: Object.values(roomState.students)
+          });
+        }
+        break;
+
+      case "offer":
+        if (to) {
+          console.log("Forwarding offer from", socket.id, "to", to);
+          io.to(to).emit("message", { ...message, from: socket.id });
+        }
+        break;
+
+      case "answer":
+        if (to) {
+          console.log("Forwarding answer from", socket.id, "to", to);
+          io.to(to).emit("message", { ...message, from: socket.id });
+        }
+        break;
+
+      case "candidate":
+        if (to && candidate) {
+          console.log("Forwarding ICE candidate:", socket.id, "->", to);
+          io.to(to).emit("message", { ...message, from: socket.id });
+        }
+        break;
+
+      case "updateParticipants":
+        // Forward participant updates to all students
+        Object.keys(roomState.students).forEach(studentId => {
+          if (studentId !== socket.id) {
+            io.to(studentId).emit("message", {
+              type: "participantsList",
+              students: Object.values(roomState.students)
+            });
+          }
+        });
+        break;
+
+      case "requestReconnect":
+        if (to) {
+          io.to(to).emit("message", { type: "requestReconnect", from: socket.id });
+        }
+        break;
+
+      case "leave":
+        if (socket.id === roomState.teacher) {
+          console.log("Teacher leaving room:", socket.id);
           roomState.isStarted = false;
           roomState.teacher = null;
           roomState.students = {};
           roomState.connections = {};
           io.emit("message", { type: "roomEnded" });
-          break;
+        } else {
+          console.log("Student leaving room:", socket.id);
+          delete roomState.students[socket.id];
+          io.emit("message", { 
+            type: "studentLeft", 
+            studentId: socket.id,
+            students: Object.values(roomState.students)
+          });
+        }
+        break;
 
-        case "join":
-          if (user === "Teacher") {
-            console.log("Teacher joined:", socket.id);
-            roomState.teacher = socket.id;
-            socket.emit("message", { 
-              type: "roomState", 
-              isStarted: roomState.isStarted,
-              students: Object.values(roomState.students)
-            });
-          } else {
-            console.log("Student joined:", user, socket.id);
-            roomState.students[socket.id] = { id: socket.id, name: user };
-            
-            // Initialize connection tracking with retry mechanism
-            if (roomState.isStarted) {
-              roomState.connections[socket.id] = {
-                hasOffer: false,
-                hasAnswer: false,
-                connected: false
-              };
-              roomState.connectionAttempts[socket.id] = 0;
-            }
-
-            io.emit("message", { 
-              type: "studentJoined", 
-              student: { id: socket.id, name: user },
-              students: Object.values(roomState.students)
-            });
-            socket.emit("message", { 
-              type: "roomState", 
-              isStarted: roomState.isStarted,
-              teacherId: roomState.teacher,
-              students: Object.values(roomState.students)
-            });
-          }
-          break;
-
-        case "offer":
-          if (to && sdp) {
-            console.log("Forwarding offer from teacher to student:", to);
-            if (roomState.connections[to]) {
-              roomState.connections[to].hasOffer = true;
-              roomState.connectionAttempts[to]++;
-              
-              // If we've tried too many times, notify about connection issues
-              if (roomState.connectionAttempts[to] > 3) {
-                io.to(roomState.teacher).emit("message", {
-                  type: "connectionWarning",
-                  studentId: to,
-                  message: "Connection attempts exceeded"
-                });
-              }
-            }
-            io.to(to).emit("message", { ...message, from: socket.id });
-          }
-          break;
-
-        case "answer":
-          if (to && sdp) {
-            console.log("Forwarding answer from student to teacher:", socket.id);
-            if (roomState.connections[socket.id]) {
-              roomState.connections[socket.id].hasAnswer = true;
-              roomState.connections[socket.id].connected = true;
-            }
-            io.to(to).emit("message", { ...message, from: socket.id });
-          }
-          break;
-
-        case "candidate":
-          if (to && candidate) {
-            console.log("Forwarding ICE candidate:", socket.id, "->", to);
-            io.to(to).emit("message", { ...message, from: socket.id });
-          }
-          break;
-
-        case "connectionSuccess":
-          if (roomState.connections[socket.id]) {
-            roomState.connections[socket.id].connected = true;
-            console.log("Connection successful for:", socket.id);
-          }
-          break;
-
-        case "connectionFailed":
-          console.log("Connection failed for:", socket.id);
-          if (roomState.connections[socket.id]) {
-            // Notify teacher about connection failure
-            io.to(roomState.teacher).emit("message", {
-              type: "connectionError",
-              studentId: socket.id,
-              student: roomState.students[socket.id]
-            });
-          }
-          break;
-
-        case "leave":
-          if (socket.id === roomState.teacher) {
-            console.log("Teacher leaving room:", socket.id);
-            roomState.isStarted = false;
-            roomState.teacher = null;
-            roomState.students = {};
-            roomState.connections = {};
-            io.emit("message", { type: "roomEnded" });
-          } else {
-            console.log("Student leaving room:", socket.id);
-            delete roomState.students[socket.id];
-            delete roomState.connections[socket.id];
-            io.emit("message", { 
-              type: "studentLeft", 
-              studentId: socket.id,
-              students: Object.values(roomState.students)
-            });
-          }
-          break;
-
-        default:
-          if (to) {
-            io.to(to).emit("message", { ...message, from: socket.id });
-          } else {
-            socket.broadcast.emit("message", { ...message, from: socket.id });
-          }
-          break;
-      }
-    } catch (error) {
-      console.error("Error handling message:", error);
-      socket.emit("message", {
-        type: "error",
-        message: "Internal server error"
-      });
+      default:
+        if (to) {
+          io.to(to).emit("message", { ...message, from: socket.id });
+        } else {
+          socket.broadcast.emit("message", { ...message, from: socket.id });
+        }
+        break;
     }
   });
 
@@ -249,7 +201,6 @@ io.on("connection", (socket) => {
     } else if (roomState.students[socket.id]) {
       console.log("Student disconnected:", socket.id);
       delete roomState.students[socket.id];
-      delete roomState.connections[socket.id];
       io.emit("message", { 
         type: "studentLeft", 
         studentId: socket.id,
