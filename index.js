@@ -3,23 +3,18 @@ const router = require("./router/route");
 const bodyParser = require("body-parser");
 const path = require("path");
 const cors = require("cors");
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const db = require("./config/config");
 const cookieParser = require("cookie-parser");
-
-const http = require("http");
-
-// const { createServer } =require ('http');
 const { Server } = require("socket.io");
+const http = require("http");
 
 require("dotenv").config();
 
 const app = express();
 const port = process.env.PORT || 3000;
 
-// إعدادات Express
+// Express settings
 app.use(bodyParser.json());
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -42,18 +37,12 @@ app.use(
         callback(new Error("Not allowed by CORS"));
       }
     },
-    methods: ["GET", "POST", "DELETE", "PUT"],
+    methods: ["GET", "POST"],
     credentials: true,
   })
 );
 
-app.use(router);
-app.use(express.static(path.join(__dirname, "public")));
-
-////////////////////////////////////////////////////////////////////////////////////////////////
-
 const server = http.createServer(app);
-
 const io = new Server(server, {
   cors: {
     origin: function (origin, callback) {
@@ -74,7 +63,68 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: true,
   },
+  transports: ["websocket"],
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
+
+// Store active peer connections
+const peers = new Map();
+
+// WebSocket connection handling
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  socket.on("join", (roomId) => {
+    socket.join(roomId);
+    socket.to(roomId).emit("user-joined", socket.id);
+    
+    // Store peer info
+    if (!peers.has(roomId)) {
+      peers.set(roomId, new Set());
+    }
+    peers.get(roomId).add(socket.id);
+    
+    // Send existing peers to new user
+    const roomPeers = Array.from(peers.get(roomId)).filter(id => id !== socket.id);
+    socket.emit("existing-peers", roomPeers);
+  });
+
+  socket.on("signal", (data) => {
+    const { target, signal } = data;
+    io.to(target).emit("signal", {
+      from: socket.id,
+      signal: signal
+    });
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+    // Remove peer from all rooms
+    peers.forEach((roomPeers, roomId) => {
+      if (roomPeers.has(socket.id)) {
+        roomPeers.delete(socket.id);
+        socket.to(roomId).emit("user-left", socket.id);
+        
+        // Clean up empty rooms
+        if (roomPeers.size === 0) {
+          peers.delete(roomId);
+        }
+      }
+    });
+  });
+});
+
+// Start server
+server.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
+
+app.use(router);
+app.use(express.static(path.join(__dirname, "public")));
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 const rooms = new Map();
 
@@ -84,6 +134,7 @@ class Room {
     this.participants = new Map();
     this.isStarted = false;
     this.teacherId = null;
+    this.lastActivity = Date.now();
   }
 
   addParticipant(id, userData) {
@@ -99,6 +150,7 @@ class Room {
       role: userData.role || 'student',
       joinedAt: new Date().toISOString()
     });
+    this.lastActivity = Date.now();
     return true;
   }
 
@@ -109,6 +161,7 @@ class Room {
       this.isStarted = false;
       this.teacherId = null;
     }
+    this.lastActivity = Date.now();
     return participant;
   }
 
@@ -119,10 +172,15 @@ class Room {
   getParticipant(id) {
     return this.participants.get(id);
   }
+
+  isActive() {
+    return Date.now() - this.lastActivity < 3600000; // 1 hour
+  }
 }
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
+  let currentRoom = null;
 
   socket.on("message", async (message) => {
     const { type, roomId, userData } = message;
@@ -137,6 +195,7 @@ io.on("connection", (socket) => {
           const room = rooms.get(roomId);
           room.isStarted = true;
           room.teacherId = socket.id;
+          currentRoom = room;
           
           // Add teacher to participants
           room.addParticipant(socket.id, {
@@ -167,6 +226,7 @@ io.on("connection", (socket) => {
             rooms.set(roomId, new Room(roomId));
           }
           const joinRoom = rooms.get(roomId);
+          currentRoom = joinRoom;
           
           if (joinRoom.addParticipant(socket.id, userData)) {
             socket.join(roomId);
@@ -217,6 +277,7 @@ io.on("connection", (socket) => {
             const leaveRoom = rooms.get(roomId);
             const participant = leaveRoom.removeParticipant(socket.id);
             socket.leave(roomId);
+            currentRoom = null;
             
             io.to(roomId).emit("message", {
               type: "participantLeft",
@@ -242,6 +303,7 @@ io.on("connection", (socket) => {
                 roomId
               });
               rooms.delete(roomId);
+              currentRoom = null;
             }
           }
           break;
@@ -257,25 +319,38 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-    rooms.forEach((room, roomId) => {
-      if (room.participants.has(socket.id)) {
-        const participant = room.removeParticipant(socket.id);
-        io.to(roomId).emit("message", {
-          type: "participantLeft",
-          participantId: socket.id,
-          participantName: participant ? participant.name : '',
-          participants: room.getParticipants(),
-          isStarted: room.isStarted,
-          teacherId: room.teacherId
-        });
-        
-        if (room.participants.size === 0) {
-          rooms.delete(roomId);
-        }
+    if (currentRoom) {
+      const participant = currentRoom.removeParticipant(socket.id);
+      io.to(currentRoom.id).emit("message", {
+        type: "participantLeft",
+        participantId: socket.id,
+        participantName: participant ? participant.name : '',
+        participants: currentRoom.getParticipants(),
+        isStarted: currentRoom.isStarted,
+        teacherId: currentRoom.teacherId
+      });
+      
+      if (currentRoom.participants.size === 0) {
+        rooms.delete(currentRoom.id);
       }
-    });
+    }
   });
 });
+
+// Clean up inactive rooms periodically
+setInterval(() => {
+  for (const [roomId, room] of rooms.entries()) {
+    if (!room.isActive()) {
+      console.log(`Removing inactive room: ${roomId}`);
+      io.to(roomId).emit("message", {
+        type: "roomEnded",
+        roomId,
+        reason: "inactivity"
+      });
+      rooms.delete(roomId);
+    }
+  }
+}, 1800000); // Check every 30 minutes
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -492,6 +567,7 @@ app.get("/user", authenticateToken, async (req, res) => {
 
 //////////////////////////////////////
 
-server.listen(port, () => {
-  console.log(`Server is running on port http://localhost:${port}`);
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Internal Server Error');
 });
