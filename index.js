@@ -33,6 +33,7 @@ app.use(
         "http://localhost:5173",
         "https://academy-backend-pq91.onrender.com",
         "https://japaneseacademy.online",
+        "https://192.168.1.107:5173"
       ];
       if (allowedOrigins.includes(origin) || !origin) {
         callback(null, true);
@@ -206,7 +207,7 @@ io.on("connection", (socket) => {
               from: socket.id,
               text: message.text,
               timestamp: Date.now(),
-              
+
             };
             room.addMessage(messageData);
             io.to(roomId).emit("chatMessage", messageData);
