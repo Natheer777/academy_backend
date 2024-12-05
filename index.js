@@ -51,277 +51,6 @@ app.use(express.static(path.join(__dirname, "public")));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-// const server = http.createServer(app);
-// const io = new Server(server, {
-//   cors: {
-//     origin: [
-//       "https://japaneseacademy.online",
-//       "https://academy-backend-pq91.onrender.com",
-//       "http://localhost:5173",
-//       "https://192.168.1.107:5173",
-//       "http://127.0.0.1:4040"
-//     ],
-//     methods: ["GET", "POST"],
-//   },
-  
-// });
-
-
-// app.use(express.static("public"));
-// const activeRooms = {}; // تخزين الغرف
-
-
-// app.post("/create-room", (req, res) => {
-//   const roomId = `room-${crypto.randomUUID()}`;
-//   activeRooms[roomId] = { participants: [] }; // إضافة غرفة جديدة
-//   console.log("Room created:", roomId);
-//   console.log("Active Rooms after creation:", activeRooms);
-
-//   // إرسال إشعار لكل الطلاب
-//   io.emit("room-created", { roomId });
-
-//   res.status(201).json({ roomId });
-// });
-
-// app.get("/check-room/:roomId", (req, res) => {
-//   const { roomId } = req.params;
-//   console.log("Checking room:", roomId);
-//   console.log("Active Rooms:", activeRooms);
-//   if (activeRooms[roomId]) {
-//     res.status(200).json({ exists: true, message: "Room found" });
-//   } else {
-//     res.status(404).json({ exists: false, message: "Room not found" });
-//   }
-// });
-// io.on("connection", (socket) => {
-//   console.log("User connected: " + socket.id);
-
-//   // عندما ينضم المستخدم إلى الغرفة
-//   socket.on("join-room", (data) => {
-//     const { roomId, userType } = data;
-
-//     // تحقق من أن الغرفة موجودة
-//     if (activeRooms[roomId]) {
-//       // إضافة المستخدم إلى المشاركين في الغرفة
-//       activeRooms[roomId].participants.push({ id: socket.id, type: userType });
-//       console.log(`User ${socket.id} (${userType}) joined room: ${roomId}`);
-
-//       // إرسال تحديث للمشاركين في الغرفة
-//       io.to(roomId).emit("update-users", activeRooms[roomId].participants);
-
-//       // الانضمام إلى الغرفة باستخدام Socket.IO
-//       socket.join(roomId);
-
-//       // عرض المشاركين الحاليين في الغرفة
-//       console.log(`Participants in room ${roomId}:`, activeRooms[roomId].participants);
-//     } else {
-//       console.log("Room not found!");
-//     }
-//   });
-
-//   // عندما يترك المستخدم الغرفة
-//   socket.on("leave-room", (roomId) => {
-//     if (activeRooms[roomId]) {
-//       // إزالة المستخدم من المشاركين
-//       activeRooms[roomId].participants = activeRooms[roomId].participants.filter(
-//         (participant) => participant.id !== socket.id
-//       );
-//       console.log(`User ${socket.id} left room: ${roomId}`);
-
-//       // إرسال تحديث للمشاركين في الغرفة
-//       io.to(roomId).emit("update-users", activeRooms[roomId].participants);
-
-//       // عرض المشاركين الحاليين في الغرفة بعد المغادرة
-//       console.log(`Participants in room ${roomId}:`, activeRooms[roomId].participants);
-//     }
-//   });
-//   });
-
-
-
-
-
-// const server = http.createServer(app);
-
-// const io = new Server(server, {
-//   cors: {
-//     origin: [
-//       "https://japaneseacademy.online",
-//       "https://academy-backend-pq91.onrender.com",
-//       "http://localhost:5173",
-//       "https://192.168.1.107:5173",
-//       "http://127.0.0.1:4040",
-//     ],
-//     methods: ["GET", "POST"],
-//   },
-// });
-
-// app.use(cors());
-// app.use(express.json());
-
-// const activeRooms = {};
-
-// // إنشاء غرفة
-// app.post("/create-room", (req, res) => {
-//   const roomId = `room-${crypto.randomUUID()}`;
-//   activeRooms[roomId] = { participants: [] };
-//   console.log("Room created:", roomId);
-//   io.emit("room-created", { roomId });
-//   res.status(201).json({ roomId });
-// });
-
-// // التحقق من الغرفة
-// app.get("/check-room/:roomId", (req, res) => {
-//   const { roomId } = req.params;
-//   if (activeRooms[roomId]) {
-//     res.status(200).json({ exists: true, message: "Room found" });
-//   } else {
-//     res.status(404).json({ exists: false, message: "Room not found" });
-//   }
-// });
-
-// // إدارة الاتصالات
-// io.on("connection", (socket) => {
-//   console.log("User connected:", socket.id);
-
-//   socket.on("join-room", (data) => {
-//     const { roomId, userType } = data;
-
-//     if (activeRooms[roomId]) {
-//       activeRooms[roomId].participants.push({ id: socket.id, type: userType });
-//       socket.join(roomId);
-//       io.to(roomId).emit("update-users", activeRooms[roomId].participants);
-//       console.log(`User ${socket.id} joined room: ${roomId}`);
-//     } else {
-//       console.log("Room not found:", roomId);
-//     }
-//   });
-
-//   socket.on("leave-room", (roomId) => {
-//     if (activeRooms[roomId]) {
-//       activeRooms[roomId].participants = activeRooms[roomId].participants.filter(
-//         (participant) => participant.id !== socket.id
-//       );
-//       socket.leave(roomId);
-//       io.to(roomId).emit("update-users", activeRooms[roomId].participants);
-//       console.log(`User ${socket.id} left room: ${roomId}`);
-//     }
-//   });
-
-//   socket.on("disconnect", () => {
-//     console.log("User disconnected:", socket.id);
-//   });
-// });
-
-
-// const server = http.createServer(app);
-
-// const io = new Server(server, {
-//   cors: {
-//     origin: [
-//       "https://japaneseacademy.online",
-//       "https://academy-backend-pq91.onrender.com",
-//       "http://localhost:5173",
-//       "https://192.168.1.107:5173",
-//       "http://127.0.0.1:4040",
-//     ],
-//     methods: ["GET", "POST"],
-//   },
-// });
-
-// app.use(cors());
-// app.use(express.json());
-
-// const activeRooms = {};
-
-// // إنشاء غرفة
-// app.post("/create-room", (req, res) => {
-//   const roomId = `room-${crypto.randomUUID()}`;
-//   activeRooms[roomId] = { participants: [] };
-//   console.log("Room created:", roomId);
-//   io.emit("room-created", { roomId });
-//   res.status(201).json({ roomId });
-// });
-
-// // التحقق من الغرفة
-// app.get("/check-room/:roomId", (req, res) => {
-//   const { roomId } = req.params;
-//   if (activeRooms[roomId]) {
-//     res.status(200).json({ exists: true, message: "Room found" });
-//   } else {
-//     res.status(404).json({ exists: false, message: "Room not found" });
-//   }
-// });
-
-// // إدارة الاتصالات
-// io.on("connection", (socket) => {
-//   console.log("User connected:", socket.id);
-
-//   socket.on("join-room", (data) => {
-//     const { roomId, userType } = data;
-
-//     if (activeRooms[roomId]) {
-//       activeRooms[roomId].participants.push({ id: socket.id, type: userType });
-//       socket.join(roomId);
-//       io.to(roomId).emit("update-users", activeRooms[roomId].participants);
-//       console.log(`User ${socket.id} joined room: ${roomId}`);
-//     } else {
-//       console.log("Room not found:", roomId);
-//     }
-//   });
-
-//   socket.on("leave-room", (roomId) => {
-//     if (activeRooms[roomId]) {
-//       activeRooms[roomId].participants = activeRooms[roomId].participants.filter(
-//         (participant) => participant.id !== socket.id
-//       );
-//       socket.leave(roomId);
-//       io.to(roomId).emit("update-users", activeRooms[roomId].participants);
-//       console.log(`User ${socket.id} left room: ${roomId}`);
-//     }
-//   });
-
-//   socket.on("disconnect", () => {
-//     console.log("User disconnected:", socket.id);
-//   });
-// });
-
-
-// const server = http.createServer(app);
-
-// const io = new Server(server, {
-//   cors: {
-//     origin: [
-//       "https://japaneseacademy.online",
-//       "https://academy-backend-pq91.onrender.com",
-//       "http://localhost:5173",
-//       "https://192.168.1.107:5173",
-//       "http://127.0.0.1:4040",
-//     ],
-//     methods: ["GET", "POST"],
-//   },
-// });
-// io.on("connection", (socket) => {
-//   console.log("Connected");
-
-//   socket.on("message", (message) => {
-//     socket.broadcast.emit("message", message);
-//   });
-
-//   socket.on("disconnect", () => {
-//     console.log("Disconnected");
-//   });
-// });
-
-// function error(err, req, res, next) {
-//   // log it
-//   if (!test) console.error(err.stack);
-
-//   // respond with 500 "Internal Server Error".
-//   res.status(500);
-//   res.send("Internal Server Error");
-// }
-
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -334,13 +63,17 @@ const io = new Server(server, {
     ],
     methods: ["GET", "POST"],
   },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ['websocket', 'polling']
 });
 
 const roomState = {
   isStarted: false,
   teacher: null,
   students: {},
-  connections: {} // Track active WebRTC connections
+  connections: {}, // Track active WebRTC connections
+  connectionAttempts: {} // Track connection attempts
 };
 
 io.on("connection", (socket) => {
@@ -350,116 +83,157 @@ io.on("connection", (socket) => {
     const { type, user, to, sdp, candidate } = message;
     console.log("Received message:", type, "from:", socket.id, "to:", to || "broadcast");
 
-    switch (type) {
-      case "startRoom":
-        console.log("Teacher starting room:", socket.id);
-        roomState.isStarted = true;
-        roomState.teacher = socket.id;
-        roomState.connections = {}; // Reset connections
-        io.emit("message", { 
-          type: "roomStarted",
-          teacherId: socket.id 
-        });
-        break;
-
-      case "endRoom":
-        console.log("Teacher ending room:", socket.id);
-        roomState.isStarted = false;
-        roomState.teacher = null;
-        roomState.students = {};
-        roomState.connections = {};
-        io.emit("message", { type: "roomEnded" });
-        break;
-
-      case "join":
-        if (user === "Teacher") {
-          console.log("Teacher joined:", socket.id);
+    try {
+      switch (type) {
+        case "startRoom":
+          console.log("Teacher starting room:", socket.id);
+          roomState.isStarted = true;
           roomState.teacher = socket.id;
-          socket.emit("message", { 
-            type: "roomState", 
-            isStarted: roomState.isStarted,
-            students: Object.values(roomState.students)
-          });
-        } else {
-          console.log("Student joined:", user, socket.id);
-          roomState.students[socket.id] = { id: socket.id, name: user };
-          
-          // Initialize connection tracking
-          if (roomState.isStarted) {
-            roomState.connections[socket.id] = {
-              hasOffer: false,
-              hasAnswer: false
-            };
-          }
-
+          roomState.connections = {}; // Reset connections
+          roomState.connectionAttempts = {}; // Reset attempts
           io.emit("message", { 
-            type: "studentJoined", 
-            student: { id: socket.id, name: user },
-            students: Object.values(roomState.students)
+            type: "roomStarted",
+            teacherId: socket.id 
           });
-          socket.emit("message", { 
-            type: "roomState", 
-            isStarted: roomState.isStarted,
-            teacherId: roomState.teacher,
-            students: Object.values(roomState.students)
-          });
-        }
-        break;
+          break;
 
-      case "offer":
-        if (to && sdp) {
-          console.log("Forwarding offer from teacher to student:", to);
-          if (roomState.connections[to]) {
-            roomState.connections[to].hasOffer = true;
-          }
-          io.to(to).emit("message", { ...message, from: socket.id });
-        }
-        break;
-
-      case "answer":
-        if (to && sdp) {
-          console.log("Forwarding answer from student to teacher:", socket.id);
-          if (roomState.connections[socket.id]) {
-            roomState.connections[socket.id].hasAnswer = true;
-          }
-          io.to(to).emit("message", { ...message, from: socket.id });
-        }
-        break;
-
-      case "candidate":
-        if (to && candidate) {
-          console.log("Forwarding ICE candidate:", socket.id, "->", to);
-          io.to(to).emit("message", { ...message, from: socket.id });
-        }
-        break;
-
-      case "leave":
-        if (socket.id === roomState.teacher) {
-          console.log("Teacher leaving room:", socket.id);
+        case "endRoom":
+          console.log("Teacher ending room:", socket.id);
           roomState.isStarted = false;
           roomState.teacher = null;
           roomState.students = {};
           roomState.connections = {};
           io.emit("message", { type: "roomEnded" });
-        } else {
-          console.log("Student leaving room:", socket.id);
-          delete roomState.students[socket.id];
-          delete roomState.connections[socket.id];
-          io.emit("message", { 
-            type: "studentLeft", 
-            studentId: socket.id,
-            students: Object.values(roomState.students)
-          });
-        }
-        break;
+          break;
 
-      default:
-        if (to) {
-          io.to(to).emit("message", { ...message, from: socket.id });
-        } else {
-          socket.broadcast.emit("message", { ...message, from: socket.id });
-        }
-        break;
+        case "join":
+          if (user === "Teacher") {
+            console.log("Teacher joined:", socket.id);
+            roomState.teacher = socket.id;
+            socket.emit("message", { 
+              type: "roomState", 
+              isStarted: roomState.isStarted,
+              students: Object.values(roomState.students)
+            });
+          } else {
+            console.log("Student joined:", user, socket.id);
+            roomState.students[socket.id] = { id: socket.id, name: user };
+            
+            // Initialize connection tracking with retry mechanism
+            if (roomState.isStarted) {
+              roomState.connections[socket.id] = {
+                hasOffer: false,
+                hasAnswer: false,
+                connected: false
+              };
+              roomState.connectionAttempts[socket.id] = 0;
+            }
+
+            io.emit("message", { 
+              type: "studentJoined", 
+              student: { id: socket.id, name: user },
+              students: Object.values(roomState.students)
+            });
+            socket.emit("message", { 
+              type: "roomState", 
+              isStarted: roomState.isStarted,
+              teacherId: roomState.teacher,
+              students: Object.values(roomState.students)
+            });
+          }
+          break;
+
+        case "offer":
+          if (to && sdp) {
+            console.log("Forwarding offer from teacher to student:", to);
+            if (roomState.connections[to]) {
+              roomState.connections[to].hasOffer = true;
+              roomState.connectionAttempts[to]++;
+              
+              // If we've tried too many times, notify about connection issues
+              if (roomState.connectionAttempts[to] > 3) {
+                io.to(roomState.teacher).emit("message", {
+                  type: "connectionWarning",
+                  studentId: to,
+                  message: "Connection attempts exceeded"
+                });
+              }
+            }
+            io.to(to).emit("message", { ...message, from: socket.id });
+          }
+          break;
+
+        case "answer":
+          if (to && sdp) {
+            console.log("Forwarding answer from student to teacher:", socket.id);
+            if (roomState.connections[socket.id]) {
+              roomState.connections[socket.id].hasAnswer = true;
+              roomState.connections[socket.id].connected = true;
+            }
+            io.to(to).emit("message", { ...message, from: socket.id });
+          }
+          break;
+
+        case "candidate":
+          if (to && candidate) {
+            console.log("Forwarding ICE candidate:", socket.id, "->", to);
+            io.to(to).emit("message", { ...message, from: socket.id });
+          }
+          break;
+
+        case "connectionSuccess":
+          if (roomState.connections[socket.id]) {
+            roomState.connections[socket.id].connected = true;
+            console.log("Connection successful for:", socket.id);
+          }
+          break;
+
+        case "connectionFailed":
+          console.log("Connection failed for:", socket.id);
+          if (roomState.connections[socket.id]) {
+            // Notify teacher about connection failure
+            io.to(roomState.teacher).emit("message", {
+              type: "connectionError",
+              studentId: socket.id,
+              student: roomState.students[socket.id]
+            });
+          }
+          break;
+
+        case "leave":
+          if (socket.id === roomState.teacher) {
+            console.log("Teacher leaving room:", socket.id);
+            roomState.isStarted = false;
+            roomState.teacher = null;
+            roomState.students = {};
+            roomState.connections = {};
+            io.emit("message", { type: "roomEnded" });
+          } else {
+            console.log("Student leaving room:", socket.id);
+            delete roomState.students[socket.id];
+            delete roomState.connections[socket.id];
+            io.emit("message", { 
+              type: "studentLeft", 
+              studentId: socket.id,
+              students: Object.values(roomState.students)
+            });
+          }
+          break;
+
+        default:
+          if (to) {
+            io.to(to).emit("message", { ...message, from: socket.id });
+          } else {
+            socket.broadcast.emit("message", { ...message, from: socket.id });
+          }
+          break;
+      }
+    } catch (error) {
+      console.error("Error handling message:", error);
+      socket.emit("message", {
+        type: "error",
+        message: "Internal server error"
+      });
     }
   });
 
@@ -482,75 +256,6 @@ io.on("connection", (socket) => {
         students: Object.values(roomState.students)
       });
     }
-  });
-});
-
-
-
-
-// قائمة لتتبع جميع المستخدمين المتصلين
-// const connectedUsers = {};
-
-// io.on("connection", (socket) => {
-//   console.log("User connected:", socket.id);
-
-//   // عند الاتصال، يتم إضافة المستخدم إلى قائمة المستخدمين
-//   connectedUsers[socket.id] = socket.id;
-
-//   // إبلاغ جميع المستخدمين الآخرين بوجود مستخدم جديد
-//   socket.broadcast.emit("message", { type: "ready", from: socket.id });
-
-//   // استقبال الرسائل من المستخدمين
-//   socket.on("message", (message) => {
-//     const { to } = message;
-
-//     if (to) {
-//       // إذا كانت الرسالة موجهة إلى مستخدم معين
-//       if (connectedUsers[to]) {
-//         io.to(to).emit("message", { ...message, from: socket.id });
-//       }
-//     } else {
-//       // إذا لم يتم تحديد مستقبل، يتم بث الرسالة للجميع باستثناء المرسل
-//       socket.broadcast.emit("message", { ...message, from: socket.id });
-//     }
-//   });
-
-//   // عند قطع الاتصال
-//   socket.on("disconnect", () => {
-//     console.log("User disconnected:", socket.id);
-//     delete connectedUsers[socket.id];
-
-//     // إبلاغ جميع المستخدمين الآخرين بأن المستخدم غادر
-//     socket.broadcast.emit("message", { type: "bye", from: socket.id });
-//   });
-// });
-
-// // معالج الأخطاء
-// function error(err, req, res, next) {
-//   console.error(err.stack);
-//   res.status(500).send("Internal Server Error");
-// }
-
-// app.use(error);
-///////////////////////////////////////////////////////
-
-let messages = []; // قائمة الرسائل المخزنة في الذاكرة
-
-// استقبال اتصالات العملاء
-io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
-
-  // إرسال الرسائل الحالية عند الاتصال
-  socket.emit('chatHistory', messages);
-
-  // استقبال الرسالة الجديدة
-  socket.on('sendMessage', (message) => {
-    messages.push(message); // تخزين الرسالة في الذاكرة
-    io.emit('receiveMessage', message); // إرسال الرسالة للجميع
-  });
-
-  socket.on('disconnect', () => {
-    console.log('A user disconnected:', socket.id);
   });
 });
 
@@ -780,56 +485,3 @@ app.get("/user", authenticateToken, async (req, res) => {
 server.listen(port, () => {
   console.log(`Server is running on port http://localhost:${port}`);
 });
-
-
-
-// const express = require ('express');
-// const { createServer } = require ('http');
-// const { Server } = require ('socket.io');
-// const cors = require ('cors');
-
-// const app = express();
-// app.use(cors());
-
-// const httpServer = createServer(app);
-// const io = new Server(httpServer, {
-//   cors: {
-//     origin: ["https://japaneseacademy.online" , "http://localhost:5173"],
-//     methods: ["GET", "POST"]
-//   }
-// });
-
-// let isRoomStarted = false;
-
-// io.on('connection', (socket) => {
-//   console.log('User connected:', socket.id);
-
-//   socket.emit('room-status', isRoomStarted);
-
-//   socket.on('start-room', () => {
-//     isRoomStarted = true;
-//     io.emit('room-status', isRoomStarted);
-//   });
-
-//   socket.on('join-room', () => {
-//     socket.broadcast.emit('student-joined', socket.id);
-//   });
-
-//   socket.on('signal', ({ to, signal }) => {
-//     if (to) {
-//       io.to(to).emit('receive-signal', { from: socket.id, signal });
-//     } else {
-//       socket.broadcast.emit('receive-signal', { from: socket.id, signal });
-//     }
-//   });
-
-//   socket.on('disconnect', () => {
-//     console.log('User disconnected:', socket.id);
-//     socket.broadcast.emit('student-left', socket.id);
-//   });
-// });
-
-// const PORT = process.env.PORT || 3000;
-// httpServer.listen(PORT, () => {
-//   console.log(`Server is running on port ${PORT}`);
-// });
