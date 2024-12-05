@@ -33,8 +33,6 @@ app.use(
         "http://localhost:5173",
         "https://academy-backend-pq91.onrender.com",
         "https://japaneseacademy.online",
-        "https://192.168.1.107:5173",
-
       ];
       if (allowedOrigins.includes(origin) || !origin) {
         callback(null, true);
@@ -42,186 +40,235 @@ app.use(
         callback(new Error("Not allowed by CORS"));
       }
     },
-    methods: ["GET", "POST", "DELETE", "PUT"], // إضافة الطرق المسموحة
+    methods: ["GET", "POST", "DELETE", "PUT"],
+    credentials: true,
   })
 );
-app.use(cors());
 app.use(router);
 app.use(express.static(path.join(__dirname, "public")));
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: [
-      "https://japaneseacademy.online",
-      "https://academy-backend-pq91.onrender.com",
-      "http://localhost:5173",
-      "https://192.168.1.107:5173",
-    ],
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        "https://natheer777.github.io",
+        "http://localhost:5173",
+        "https://academy-backend-pq91.onrender.com",
+        "https://japaneseacademy.online",
+      ];
+      if (allowedOrigins.includes(origin) || !origin) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     methods: ["GET", "POST"],
+    credentials: true,
   },
 });
 
-const roomState = {
-  isStarted: false,
-  teacher: null,
-  students: {},
-  connections: {} // Track active WebRTC connections
-};
+// إدارة المستخدمين والغرف
+const connectedUsers = new Map();
+const rooms = new Map();
+
+class Room {
+  constructor(id) {
+    this.id = id;
+    this.participants = new Map();
+    this.messages = [];
+    this.createdAt = Date.now();
+  }
+
+  addParticipant(socketId, userData) {
+    this.participants.set(socketId, {
+      id: socketId,
+      ...userData,
+      joinedAt: Date.now(),
+    });
+  }
+
+  removeParticipant(socketId) {
+    this.participants.delete(socketId);
+  }
+
+  addMessage(message) {
+    this.messages.push({
+      ...message,
+      timestamp: Date.now(),
+    });
+  }
+
+  getParticipants() {
+    return Array.from(this.participants.values());
+  }
+}
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  socket.on("message", (message) => {
-    const { type, user, to, sdp, candidate } = message;
-    console.log("Received message:", type, "from:", socket.id, "to:", to || "broadcast");
+  // إضافة المستخدم عند الاتصال
+  connectedUsers.set(socket.id, {
+    id: socket.id,
+    rooms: new Set(),
+    status: "online",
+  });
 
-    switch (type) {
-      case "startRoom":
-        console.log("Teacher starting room:", socket.id);
-        roomState.isStarted = true;
-        roomState.teacher = socket.id;
-        roomState.connections = {}; // Reset connections
-        io.emit("message", { 
-          type: "roomStarted",
-          teacherId: socket.id 
-        });
-        break;
+  // إرسال قائمة المستخدمين المتصلين للمستخدم الجديد
+  socket.emit("connectedUsers", Array.from(connectedUsers.values()));
 
-      case "join":
-        if (user === "Teacher") {
-          console.log("Teacher joined:", socket.id);
-          roomState.teacher = socket.id;
-          socket.emit("message", { 
-            type: "roomState", 
-            isStarted: roomState.isStarted,
-            students: Object.values(roomState.students)
+  socket.on("message", async (message) => {
+    try {
+      const { type, roomId, userData, to } = message;
+
+      switch (type) {
+        case "startRoom":
+          // إرسال إشعار بدء الغرفة لجميع المتصلين
+          io.emit("message", {
+            type: "roomStarted",
+            from: socket.id,
+            teacherId: socket.id,
+            isStarted: true
           });
-        } else {
-          console.log("Student joined:", user, socket.id);
-          roomState.students[socket.id] = { id: socket.id, name: user };
-          
-          // Notify all participants about the new student
-          io.emit("message", { 
-            type: "studentJoined", 
-            student: { id: socket.id, name: user },
-            students: Object.values(roomState.students)
+          break;
+
+        case "join":
+          // انضمام إلى غرفة
+          if (!rooms.has(roomId)) {
+            rooms.set(roomId, new Room(roomId));
+          }
+          const room = rooms.get(roomId);
+
+          // إضافة المستخدم إلى الغرفة
+          room.addParticipant(socket.id, userData);
+          connectedUsers.get(socket.id).rooms.add(roomId);
+
+          // الانضمام إلى غرفة Socket.IO
+          socket.join(roomId);
+
+          // إخطار المستخدمين الآخرين في الغرفة
+          socket.to(roomId).emit("userJoined", {
+            user: { id: socket.id, ...userData },
+            participants: room.getParticipants(),
           });
 
-          // Send current room state to the new student
-          socket.emit("message", { 
-            type: "roomState", 
-            isStarted: roomState.isStarted,
-            teacherId: roomState.teacher,
-            students: Object.values(roomState.students)
+          // إرسال معلومات الغرفة للمستخدم
+          socket.emit("roomInfo", {
+            roomId,
+            participants: room.getParticipants(),
+            messages: room.messages,
           });
-        }
-        break;
+          break;
 
-      case "offer":
-        if (to) {
-          console.log("Forwarding offer from", socket.id, "to", to);
-          io.to(to).emit("message", { ...message, from: socket.id });
-        }
-        break;
+        case "leave":
+          // مغادرة الغرفة
+          if (rooms.has(roomId)) {
+            const room = rooms.get(roomId);
+            room.removeParticipant(socket.id);
+            connectedUsers.get(socket.id).rooms.delete(roomId);
 
-      case "answer":
-        if (to) {
-          console.log("Forwarding answer from", socket.id, "to", to);
-          io.to(to).emit("message", { ...message, from: socket.id });
-        }
-        break;
+            socket.leave(roomId);
 
-      case "candidate":
-        if (to && candidate) {
-          console.log("Forwarding ICE candidate:", socket.id, "->", to);
-          io.to(to).emit("message", { ...message, from: socket.id });
-        }
-        break;
+            if (room.participants.size === 0) {
+              rooms.delete(roomId);
+            } else {
+              socket.to(roomId).emit("userLeft", {
+                userId: socket.id,
+                participants: room.getParticipants(),
+              });
+            }
+          }
+          break;
 
-      case "updateParticipants":
-        // Forward participant updates to all students
-        Object.keys(roomState.students).forEach(studentId => {
-          if (studentId !== socket.id) {
-            io.to(studentId).emit("message", {
-              type: "participantsList",
-              students: Object.values(roomState.students)
+        case "offer":
+        case "answer":
+        case "candidate":
+
+          // إرسال إشارات WebRTC
+          if (to && connectedUsers.has(to)) {
+            io.to(to).emit("message", {
+              type,
+              from: socket.id,
+              ...message,
             });
           }
-        });
-        break;
+          break;
 
-      case "requestReconnect":
-        if (to) {
-          io.to(to).emit("message", { type: "requestReconnect", from: socket.id });
-        }
-        break;
+        case "chat":
+          // إرسال رسائل الدردشة
+          if (rooms.has(roomId)) {
+            const room = rooms.get(roomId);
+            const messageData = {
+              from: socket.id,
+              text: message.text,
+              timestamp: Date.now(),
+              
+            };
+            room.addMessage(messageData);
+            io.to(roomId).emit("chatMessage", messageData);
+          }
+          break;
 
-      case "leave":
-        if (socket.id === roomState.teacher) {
-          console.log("Teacher leaving room:", socket.id);
-          roomState.isStarted = false;
-          roomState.teacher = null;
-          roomState.students = {};
-          roomState.connections = {};
-          io.emit("message", { type: "roomEnded" });
-        } else {
-          console.log("Student leaving room:", socket.id);
-          delete roomState.students[socket.id];
-          io.emit("message", { 
-            type: "studentLeft", 
-            from: socket.id,
-            studentId: socket.id,
-            students: Object.values(roomState.students)
-          });
-        }
-        break;
-
-      case "studentLeft": 
-        if (socket.id) {
-          console.log("Student leaving room:", socket.id);
-          delete roomState.students[socket.id];
-          io.emit("message", { 
-            type: "studentLeft", 
-            from: socket.id,
-            studentId: socket.id,
-            students: Object.values(roomState.students)
-          });
-        }
-        break;
-
-      default:
-        if (to) {
-          io.to(to).emit("message", { ...message, from: socket.id });
-        } else {
-          socket.broadcast.emit("message", { ...message, from: socket.id });
-        }
-        break;
+        default:
+          console.log("Unknown message type:", type);
+      }
+    } catch (error) {
+      console.error("Error handling message:", error);
+      socket.emit("error", {
+        message: "Error processing request",
+        details: error.message,
+      });
     }
   });
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-    if (socket.id === roomState.teacher) {
-      console.log("Teacher disconnected, ending room");
-      roomState.isStarted = false;
-      roomState.teacher = null;
-      roomState.students = {};
-      roomState.connections = {};
-      io.emit("message", { type: "roomEnded", from: socket.id });
-    } else if (roomState.students[socket.id]) {
-      console.log("Student disconnected:", socket.id);
-      delete roomState.students[socket.id];
-      io.emit("message", { 
-        type: "studentLeft", 
-        from: socket.id,
-        studentId: socket.id,
-        students: Object.values(roomState.students)
-      });
+
+    // إزالة المستخدم من جميع الغرف
+    const user = connectedUsers.get(socket.id);
+    if (user) {
+      for (const roomId of user.rooms) {
+        if (rooms.has(roomId)) {
+          const room = rooms.get(roomId);
+          room.removeParticipant(socket.id);
+
+          if (room.participants.size === 0) {
+            rooms.delete(roomId);
+          } else {
+            socket.to(roomId).emit("userLeft", {
+              userId: socket.id,
+              participants: room.getParticipants(),
+            });
+          }
+        }
+      }
     }
+  });
+});
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+let messages = []; // قائمة الرسائل المخزنة في الذاكرة
+
+// استقبال اتصالات العملاء
+io.on("connection", (socket) => {
+  console.log("A user connected:", socket.id);
+
+  // إرسال الرسائل الحالية عند الاتصال
+  socket.emit("chatHistory", messages);
+
+  // استقبال الرسالة الجديدة
+  socket.on("sendMessage", (message) => {
+    messages.push(message); // تخزين الرسالة في الذاكرة
+    io.emit("receiveMessage", message); // إرسال الرسالة للجميع
+  });
+
+  socket.on("disconnect", () => {
+    console.log("A user disconnected:", socket.id);
   });
 });
 
@@ -231,36 +278,6 @@ app.get("/accept-cookies", (req, res) => {
   res.cookie("acceptCookies", "true", { maxAge: 30 * 24 * 60 * 60 * 1000 });
   res.json({ message: "Cookies accept" });
 });
-
-//////////////////////////
-// app.put('/api/update-level', (req, res) => {
-//   const { studentId, levelName } = req.body;
-
-//   console.log('المعطيات المستلمة:', { studentId, levelName });
-
-//   if (!studentId || !levelName) {
-//     console.log('المعطيات مفقودة');
-//     return res.status(400).json({ message: 'الرجاء إرسال كل المعطيات المطلوبة' });
-//   }
-
-//   // تحديث مستوى الطالب في قاعدة البيانات
-//   const query = 'UPDATE users SET Level = ? WHERE id = ?';
-//   db.query(query, [levelName, studentId], (err, result) => {
-//     if (err) {
-//       console.error('خطأ في التحديث:', err);
-//       return res.status(500).json({ message: 'حدث خطأ أثناء التحديث' });
-//     }
-//     console.log('نتيجة التحديث:', result);
-
-//     if (result.affectedRows === 0) {
-//       console.log('الطالب غير موجود');
-//       return res.status(404).json({ message: 'الطالب غير موجود' });
-//     }
-
-//     console.log('تم التحديث بنجاح');
-//     res.status(200).json({ message: 'تم التحديث بنجاح' });
-//   });
-// });
 
 //////////////////////
 
@@ -389,7 +406,7 @@ app.post("/login_user", async (req, res) => {
     if (isMatch) {
       // إضافة role إلى الـ JWT
       const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role , firstName: user.firstName}, // إضافة role هنا
+        { id: user.id, email: user.email, role: user.role, firstName: user.firstName },
         process.env.JWT_SECRET,
         { expiresIn: "1h" }
       );
@@ -397,7 +414,7 @@ app.post("/login_user", async (req, res) => {
       res.status(200).json({
         message: "Login successful!",
         token,
-        user: { id: user.id, email: user.email, role: user.role , firstName: user.firstName}, // إرسال بيانات المستخدم
+        user: { id: user.id, email: user.email, role: user.role, firstName: user.firstName },
       });
     } else {
       res.status(401).json({ message: "Invalid password." });
