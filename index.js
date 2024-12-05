@@ -76,35 +76,38 @@ const io = new Server(server, {
   },
 });
 
-// إدارة المستخدمين والغرف
-const connectedUsers = new Map();
 const rooms = new Map();
 
 class Room {
   constructor(id) {
     this.id = id;
     this.participants = new Map();
-    this.messages = [];
-    this.createdAt = Date.now();
+    this.isStarted = false;
+    this.teacherId = null;
   }
 
-  addParticipant(socketId, userData) {
-    this.participants.set(socketId, {
-      id: socketId,
-      ...userData,
-      joinedAt: Date.now(),
+  addParticipant(id, userData) {
+    if (!userData || !userData.name) {
+      console.error("Invalid user data for participant:", id);
+      return false;
+    }
+
+    console.log(`Adding participant ${id} with name ${userData.name} to room ${this.id}`);
+    this.participants.set(id, {
+      id,
+      name: userData.name.trim(),
+      role: userData.role || 'student',
+      joinedAt: new Date().toISOString()
     });
+    return true;
   }
 
-  removeParticipant(socketId) {
-    this.participants.delete(socketId);
-  }
-
-  addMessage(message) {
-    this.messages.push({
-      ...message,
-      timestamp: Date.now(),
-    });
+  removeParticipant(id) {
+    this.participants.delete(id);
+    if (id === this.teacherId) {
+      this.isStarted = false;
+      this.teacherId = null;
+    }
   }
 
   getParticipants() {
@@ -115,142 +118,137 @@ class Room {
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // إضافة المستخدم عند الاتصال
-  connectedUsers.set(socket.id, {
-    id: socket.id,
-    rooms: new Set(),
-    status: "online",
-  });
-
-  // إرسال قائمة المستخدمين المتصلين للمستخدم الجديد
-  socket.emit("connectedUsers", Array.from(connectedUsers.values()));
-
   socket.on("message", async (message) => {
-    try {
-      const { type, roomId, userData, to } = message;
+    const { type, roomId, userData } = message;
+    console.log(`Received message of type ${type} from ${socket.id} for room ${roomId}`);
 
+    try {
       switch (type) {
         case "startRoom":
-          // إرسال إشعار بدء الغرفة لجميع المتصلين
-          io.emit("message", {
-            type: "roomStarted",
-            from: socket.id,
-            teacherId: socket.id,
-            isStarted: true
-          });
-          break;
-
-        case "join":
-          // انضمام إلى غرفة
           if (!rooms.has(roomId)) {
             rooms.set(roomId, new Room(roomId));
           }
           const room = rooms.get(roomId);
-
-          // إضافة المستخدم إلى الغرفة
-          room.addParticipant(socket.id, userData);
-          connectedUsers.get(socket.id).rooms.add(roomId);
-
-          // الانضمام إلى غرفة Socket.IO
-          socket.join(roomId);
-
-          // إخطار المستخدمين الآخرين في الغرفة
-          socket.to(roomId).emit("userJoined", {
-            user: { id: socket.id, ...userData },
-            participants: room.getParticipants(),
+          room.isStarted = true;
+          room.teacherId = socket.id;
+          
+          // Add teacher to participants
+          room.addParticipant(socket.id, {
+            name: "Teacher",
+            role: "teacher"
           });
-
-          // إرسال معلومات الغرفة للمستخدم
-          socket.emit("roomInfo", {
+          
+          socket.join(roomId);
+          io.emit("message", {
+            type: "roomStarted",
             roomId,
-            participants: room.getParticipants(),
-            messages: room.messages,
+            teacherId: socket.id,
+            isStarted: true,
+            participants: room.getParticipants()
           });
           break;
 
-        case "leave":
-          // مغادرة الغرفة
-          if (rooms.has(roomId)) {
-            const room = rooms.get(roomId);
-            room.removeParticipant(socket.id);
-            connectedUsers.get(socket.id).rooms.delete(roomId);
+        case "join":
+          if (!roomId || !userData || !userData.name) {
+            socket.emit("message", {
+              type: "error",
+              message: "Invalid join request"
+            });
+            break;
+          }
 
-            socket.leave(roomId);
-
-            if (room.participants.size === 0) {
-              rooms.delete(roomId);
-            } else {
-              socket.to(roomId).emit("userLeft", {
-                userId: socket.id,
-                participants: room.getParticipants(),
-              });
-            }
+          if (!rooms.has(roomId)) {
+            rooms.set(roomId, new Room(roomId));
+          }
+          const joinRoom = rooms.get(roomId);
+          
+          if (joinRoom.addParticipant(socket.id, userData)) {
+            socket.join(roomId);
+            
+            io.to(roomId).emit("message", {
+              type: "participantJoined",
+              participant: {
+                id: socket.id,
+                name: userData.name,
+                role: userData.role || 'student'
+              },
+              participants: joinRoom.getParticipants(),
+              isStarted: joinRoom.isStarted,
+              teacherId: joinRoom.teacherId
+            });
           }
           break;
 
         case "offer":
         case "answer":
         case "candidate":
+          const { to } = message;
+          if (to) {
+            message.from = socket.id;
+            socket.to(to).emit("message", message);
+          }
+          break;
 
-          // إرسال إشارات WebRTC
-          if (to && connectedUsers.has(to)) {
-            io.to(to).emit("message", {
-              type,
-              from: socket.id,
-              ...message,
+        case "leave":
+          if (roomId && rooms.has(roomId)) {
+            const leaveRoom = rooms.get(roomId);
+            leaveRoom.removeParticipant(socket.id);
+            socket.leave(roomId);
+            
+            io.to(roomId).emit("message", {
+              type: "participantLeft",
+              participantId: socket.id,
+              participants: leaveRoom.getParticipants(),
+              isStarted: leaveRoom.isStarted,
+              teacherId: leaveRoom.teacherId
             });
+
+            if (leaveRoom.participants.size === 0) {
+              rooms.delete(roomId);
+            }
           }
           break;
 
-        case "chat":
-          // إرسال رسائل الدردشة
-          if (rooms.has(roomId)) {
-            const room = rooms.get(roomId);
-            const messageData = {
-              from: socket.id,
-              text: message.text,
-              timestamp: Date.now(),
-
-            };
-            room.addMessage(messageData);
-            io.to(roomId).emit("chatMessage", messageData);
+        case "endRoom":
+          if (roomId && rooms.has(roomId)) {
+            const endRoom = rooms.get(roomId);
+            if (socket.id === endRoom.teacherId) {
+              io.to(roomId).emit("message", {
+                type: "roomEnded",
+                roomId
+              });
+              rooms.delete(roomId);
+            }
           }
           break;
-
-        default:
-          console.log("Unknown message type:", type);
       }
     } catch (error) {
-      console.error("Error handling message:", error);
-      socket.emit("error", {
-        message: "Error processing request",
-        details: error.message,
+      console.error(`Error handling ${type} message:`, error);
+      socket.emit("message", {
+        type: "error",
+        message: "Internal server error"
       });
     }
   });
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-
-    // إزالة المستخدم من جميع الغرف
-    const user = connectedUsers.get(socket.id);
-    if (user) {
-      for (const roomId of user.rooms) {
-        if (rooms.has(roomId)) {
-          const room = rooms.get(roomId);
-          room.removeParticipant(socket.id);
-
-          if (room.participants.size === 0) {
-            rooms.delete(roomId);
-          } else {
-            socket.to(roomId).emit("userLeft", {
-              userId: socket.id,
-              participants: room.getParticipants(),
-            });
-          }
+    rooms.forEach((room, roomId) => {
+      if (room.participants.has(socket.id)) {
+        room.removeParticipant(socket.id);
+        io.to(roomId).emit("message", {
+          type: "participantLeft",
+          participantId: socket.id,
+          participants: room.getParticipants(),
+          isStarted: room.isStarted,
+          teacherId: room.teacherId
+        });
+        
+        if (room.participants.size === 0) {
+          rooms.delete(roomId);
         }
       }
-    }
+    });
   });
 });
 
