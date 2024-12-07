@@ -27,7 +27,8 @@ app.use(
         "https://natheer777.github.io",
         "http://localhost:5173",
         "https://japaneseacademy.online",
-        "https://192.168.137.1:5173"
+        "https://192.168.137.1:5173",
+        "https://192.168.1.112:5173"
       ];
       if (allowedOrigins.includes(origin) || !origin) {
         callback(null, true);
