@@ -39,7 +39,7 @@ app.use(
     credentials: true,
   })
 );
-
+app.use(router);
 /////////////////////////////////////////////////////////////////////////
 
 const server = http.createServer(app);
