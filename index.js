@@ -42,335 +42,88 @@ app.use(
   })
 );
 
+/////////////////////////////////////////////////////////////////////////
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: function (origin, callback) {
-      const allowedOrigins = [
-        "https://natheer777.github.io",
-        "http://localhost:5173",
-        "https://academy-backend-pq91.onrender.com",
-        "https://japaneseacademy.online",
-        "https://192.168.1.107:5173",
-        "https://10.0.0.2:5173"
-      ];
-      if (allowedOrigins.includes(origin) || !origin) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
-  transports: ["websocket"],
-  pingTimeout: 60000,
-  pingInterval: 25000
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
 });
 
-// Store active peer connections
-const peers = new Map();
+const rooms = new Map();
 
-// WebSocket connection handling
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  socket.on("join", (roomId) => {
+  socket.on("join-room", (roomId) => {
     socket.join(roomId);
-    socket.to(roomId).emit("user-joined", socket.id);
     
-    // Store peer info
-    if (!peers.has(roomId)) {
-      peers.set(roomId, new Set());
+    if (!rooms.has(roomId)) {
+      rooms.set(roomId, new Set());
     }
-    peers.get(roomId).add(socket.id);
+    rooms.get(roomId).add(socket.id);
+    
+    // Notify others in room about new peer
+    socket.to(roomId).emit("user-connected", socket.id);
     
     // Send existing peers to new user
-    const roomPeers = Array.from(peers.get(roomId)).filter(id => id !== socket.id);
-    socket.emit("existing-peers", roomPeers);
+    const peersInRoom = Array.from(rooms.get(roomId)).filter(id => id !== socket.id);
+    socket.emit("existing-peers", peersInRoom);
   });
 
-  socket.on("signal", (data) => {
-    const { target, signal } = data;
-    io.to(target).emit("signal", {
-      from: socket.id,
-      signal: signal
-    });
+  socket.on("message", (data) => {
+    const { roomId, message, to } = data;
+    if (to) {
+      socket.to(to).emit("message", {
+        ...message,
+        from: socket.id
+      });
+    } else {
+      socket.to(roomId).emit("message", {
+        ...message,
+        from: socket.id
+      });
+    }
   });
 
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
-    // Remove peer from all rooms
-    peers.forEach((roomPeers, roomId) => {
-      if (roomPeers.has(socket.id)) {
-        roomPeers.delete(socket.id);
-        socket.to(roomId).emit("user-left", socket.id);
-        
-        // Clean up empty rooms
-        if (roomPeers.size === 0) {
-          peers.delete(roomId);
+    rooms.forEach((peers, roomId) => {
+      if (peers.has(socket.id)) {
+        peers.delete(socket.id);
+        socket.to(roomId).emit("user-disconnected", socket.id);
+        if (peers.size === 0) {
+          rooms.delete(roomId);
         }
       }
     });
   });
 });
 
-// Start server
-server.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
-
-app.use(router);
-app.use(express.static(path.join(__dirname, "public")));
-
-////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////
 
 
-const rooms = new Map();
 
-class Room {
-  constructor(id) {
-    this.id = id;
-    this.participants = new Map();
-    this.isStarted = false;
-    this.teacherId = null;
-    this.lastActivity = Date.now();
-  }
-
-  addParticipant(id, userData) {
-    if (!userData || !userData.name) {
-      console.error("Invalid user data for participant:", id);
-      return false;
-    }
-
-    console.log(`Adding participant ${id} with name ${userData.name} to room ${this.id}`);
-    this.participants.set(id, {
-      id,
-      name: userData.name.trim(),
-      role: userData.role || 'student',
-      joinedAt: new Date().toISOString()
-    });
-    this.lastActivity = Date.now();
-    return true;
-  }
-
-  removeParticipant(id) {
-    const participant = this.participants.get(id);
-    this.participants.delete(id);
-    if (id === this.teacherId) {
-      this.isStarted = false;
-      this.teacherId = null;
-    }
-    this.lastActivity = Date.now();
-    return participant;
-  }
-
-  getParticipants() {
-    return Array.from(this.participants.values());
-  }
-
-  getParticipant(id) {
-    return this.participants.get(id);
-  }
-
-  isActive() {
-    return Date.now() - this.lastActivity < 3600000; // 1 hour
-  }
-}
-
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-  let currentRoom = null;
-
-  socket.on("message", async (message) => {
-    const { type, roomId, userData } = message;
-    console.log(`Received message of type ${type} from ${socket.id} for room ${roomId}`);
-
-    try {
-      switch (type) {
-        case "startRoom":
-          if (!rooms.has(roomId)) {
-            rooms.set(roomId, new Room(roomId));
-          }
-          const room = rooms.get(roomId);
-          room.isStarted = true;
-          room.teacherId = socket.id;
-          currentRoom = room;
-          
-          // Add teacher to participants
-          room.addParticipant(socket.id, {
-            name: "المعلم",
-            role: "teacher"
-          });
-          
-          socket.join(roomId);
-          io.emit("message", {
-            type: "roomStarted",
-            roomId,
-            teacherId: socket.id,
-            isStarted: true,
-            participants: room.getParticipants()
-          });
-          break;
-
-        case "join":
-          if (!roomId || !userData || !userData.name) {
-            socket.emit("message", {
-              type: "error",
-              message: "Invalid join request - missing required data"
-            });
-            break;
-          }
-
-          if (!rooms.has(roomId)) {
-            rooms.set(roomId, new Room(roomId));
-          }
-          const joinRoom = rooms.get(roomId);
-          currentRoom = joinRoom;
-          
-          if (joinRoom.addParticipant(socket.id, userData)) {
-            socket.join(roomId);
-            
-            // Notify all participants about the new join
-            io.to(roomId).emit("message", {
-              type: "participantJoined",
-              participant: {
-                id: socket.id,
-                name: userData.name,
-                role: userData.role || 'student'
-              },
-              participants: joinRoom.getParticipants(),
-              isStarted: joinRoom.isStarted,
-              teacherId: joinRoom.teacherId
-            });
-
-            // Send current room state to the joining participant
-            socket.emit("message", {
-              type: "roomState",
-              isStarted: joinRoom.isStarted,
-              teacherId: joinRoom.teacherId,
-              participants: joinRoom.getParticipants()
-            });
-          } else {
-            socket.emit("message", {
-              type: "error",
-              message: "Could not join room - please try again"
-            });
-          }
-          break;
-
-        case "offer":
-        case "answer":
-        case "candidate":
-          const { to } = message;
-          if (to && rooms.has(roomId)) {
-            const room = rooms.get(roomId);
-            const fromParticipant = room.getParticipant(socket.id);
-            message.from = socket.id;
-            message.fromName = fromParticipant ? fromParticipant.name : '';
-            socket.to(to).emit("message", message);
-          }
-          break;
-
-        case "leave":
-          if (roomId && rooms.has(roomId)) {
-            const leaveRoom = rooms.get(roomId);
-            const participant = leaveRoom.removeParticipant(socket.id);
-            socket.leave(roomId);
-            currentRoom = null;
-            
-            io.to(roomId).emit("message", {
-              type: "participantLeft",
-              participantId: socket.id,
-              participantName: participant ? participant.name : '',
-              participants: leaveRoom.getParticipants(),
-              isStarted: leaveRoom.isStarted,
-              teacherId: leaveRoom.teacherId
-            });
-
-            if (leaveRoom.participants.size === 0) {
-              rooms.delete(roomId);
-            }
-          }
-          break;
-
-        case "endRoom":
-          if (roomId && rooms.has(roomId)) {
-            const endRoom = rooms.get(roomId);
-            if (socket.id === endRoom.teacherId) {
-              io.to(roomId).emit("message", {
-                type: "roomEnded",
-                roomId
-              });
-              rooms.delete(roomId);
-              currentRoom = null;
-            }
-          }
-          break;
-      }
-    } catch (error) {
-      console.error(`Error handling ${type} message:`, error);
-      socket.emit("message", {
-        type: "error",
-        message: "Internal server error"
-      });
-    }
-  });
-
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-    if (currentRoom) {
-      const participant = currentRoom.removeParticipant(socket.id);
-      io.to(currentRoom.id).emit("message", {
-        type: "participantLeft",
-        participantId: socket.id,
-        participantName: participant ? participant.name : '',
-        participants: currentRoom.getParticipants(),
-        isStarted: currentRoom.isStarted,
-        teacherId: currentRoom.teacherId
-      });
-      
-      if (currentRoom.participants.size === 0) {
-        rooms.delete(currentRoom.id);
-      }
-    }
-  });
-});
-
-// Clean up inactive rooms periodically
-setInterval(() => {
-  for (const [roomId, room] of rooms.entries()) {
-    if (!room.isActive()) {
-      console.log(`Removing inactive room: ${roomId}`);
-      io.to(roomId).emit("message", {
-        type: "roomEnded",
-        roomId,
-        reason: "inactivity"
-      });
-      rooms.delete(roomId);
-    }
-  }
-}, 1800000); // Check every 30 minutes
-
-////////////////////////////////////////////////////////////////////////////////////////////////
 
 let messages = []; // قائمة الرسائل المخزنة في الذاكرة
 
 // استقبال اتصالات العملاء
-io.on("connection", (socket) => {
-  console.log("A user connected:", socket.id);
+io.on('connection', (socket) => {
+  console.log('A user connected:', socket.id);
 
   // إرسال الرسائل الحالية عند الاتصال
-  socket.emit("chatHistory", messages);
+  socket.emit('chatHistory', messages);
 
   // استقبال الرسالة الجديدة
-  socket.on("sendMessage", (message) => {
+  socket.on('sendMessage', (message) => {
     messages.push(message); // تخزين الرسالة في الذاكرة
-    io.emit("receiveMessage", message); // إرسال الرسالة للجميع
+    io.emit('receiveMessage', message); // إرسال الرسالة للجميع
   });
 
-  socket.on("disconnect", () => {
-    console.log("A user disconnected:", socket.id);
+  socket.on('disconnect', () => {
+    console.log('A user disconnected:', socket.id);
   });
 });
 
@@ -380,6 +133,7 @@ app.get("/accept-cookies", (req, res) => {
   res.cookie("acceptCookies", "true", { maxAge: 30 * 24 * 60 * 60 * 1000 });
   res.json({ message: "Cookies accept" });
 });
+
 
 //////////////////////
 
@@ -508,7 +262,7 @@ app.post("/login_user", async (req, res) => {
     if (isMatch) {
       // إضافة role إلى الـ JWT
       const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role, firstName: user.firstName },
+        { id: user.id, email: user.email, role: user.role , firstName: user.firstName}, // إضافة role هنا
         process.env.JWT_SECRET,
         { expiresIn: "1h" }
       );
@@ -516,7 +270,7 @@ app.post("/login_user", async (req, res) => {
       res.status(200).json({
         message: "Login successful!",
         token,
-        user: { id: user.id, email: user.email, role: user.role, firstName: user.firstName },
+        user: { id: user.id, email: user.email, role: user.role , firstName: user.firstName}, // إرسال بيانات المستخدم
       });
     } else {
       res.status(401).json({ message: "Invalid password." });
@@ -567,7 +321,8 @@ app.get("/user", authenticateToken, async (req, res) => {
 
 //////////////////////////////////////
 
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).send('Internal Server Error');
+server.listen(port, () => {
+  console.log(`Server is running on port http://localhost:${port}`);
 });
+
+
