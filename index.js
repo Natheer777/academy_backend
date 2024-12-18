@@ -1,114 +1,66 @@
 const express = require("express");
 const router = require("./router/route");
 const bodyParser = require("body-parser");
-const path = require("path");
+const jwt = require("jsonwebtoken");
 const cors = require("cors");
-const nodemailer = require("nodemailer");
-const db = require("./config/config");
 const cookieParser = require("cookie-parser");
 const { Server } = require("socket.io");
-const http = require("http");
-
+const bcrypt = require("bcryptjs");
+const nodemailer = require("nodemailer");
+const db = require('./config/config')
 require("dotenv").config();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 9000;
 
-// Express settings
+// قائمة النطاقات المسموح بها
+const allowedOrigins = [
+  "https://natheer777.github.io",
+  "https://japaneseacademy.online",
+  "https://www.japaneseacademy.online",
+  "http://localhost:5173"
+];
+
+// إعداد CORS بشكل موحد
+const corsOptions = {
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000
+};
+
+// إعداد CORS لـ Express
+app.use(cors(corsOptions));
+
+// إعدادات Express الأخرى
 app.use(bodyParser.json());
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      const allowedOrigins = [
-        "https://natheer777.github.io",
-        "http://localhost:5173",
-        "https://japaneseacademy.online",
-        "https://192.168.137.1:5173",
-        "https://192.168.1.112:5173"
-      ];
-      if (allowedOrigins.includes(origin) || !origin) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST"],
-    credentials: true,
-  })
-);
+
+// استخدام Router
 app.use(router);
-/////////////////////////////////////////////////////////////////////////
 
-const server = http.createServer(app);
+// إعداد Socket.IO
+const server = require("http").createServer(app);
 const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+  cors: corsOptions, // استخدام نفس الإعدادات هنا
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  transports: ["websocket", "polling"],
 });
-
-const rooms = new Map();
-
-io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
-
-  socket.on("join-room", (roomId) => {
-    socket.join(roomId);
-    
-    if (!rooms.has(roomId)) {
-      rooms.set(roomId, new Set());
-    }
-    rooms.get(roomId).add(socket.id);
-    
-    // Notify others in room about new peer
-    socket.to(roomId).emit("user-connected", socket.id);
-    
-    // Send existing peers to new user
-    const peersInRoom = Array.from(rooms.get(roomId)).filter(id => id !== socket.id);
-    socket.emit("existing-peers", peersInRoom);
-  });
-
-  socket.on("message", (data) => {
-    const { roomId, message, to } = data;
-    if (to) {
-      socket.to(to).emit("message", {
-        ...message,
-        from: socket.id
-      });
-    } else {
-      socket.to(roomId).emit("message", {
-        ...message,
-        from: socket.id
-      });
-    }
-  });
-
-  socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
-    rooms.forEach((peers, roomId) => {
-      if (peers.has(socket.id)) {
-        peers.delete(socket.id);
-        socket.to(roomId).emit("user-disconnected", socket.id);
-        if (peers.size === 0) {
-          rooms.delete(roomId);
-        }
-      }
-    });
-  });
-});
-
-//////////////////////////////////////////////////////
-
-
-
-
-let messages = []; // قائمة الرسائل المخزنة في الذاكرة
 
 // استقبال اتصالات العملاء
+let messages = []; // قائمة الرسائل المخزنة في الذاكرة
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
@@ -126,7 +78,9 @@ io.on('connection', (socket) => {
   });
 });
 
-////////////////////////////////////////////////////////////////////////////////////////////////
+
+/////////////////////////
+
 
 app.get("/accept-cookies", (req, res) => {
   res.cookie("acceptCookies", "true", { maxAge: 30 * 24 * 60 * 60 * 1000 });
@@ -146,6 +100,7 @@ const sendVerificationEmail = async (email, verificationCode) => {
     },
   });
 
+  
   const mailOptions = {
     from: process.env.EMAIL,
     to: email,
@@ -318,10 +273,8 @@ app.get("/user", authenticateToken, async (req, res) => {
   }
 });
 
-//////////////////////////////////////
 
-server.listen(port, () => {
+// بدء الخادم
+server.listen(port, '0.0.0.0', () => {
   console.log(`Server is running on port http://localhost:${port}`);
 });
-
-
